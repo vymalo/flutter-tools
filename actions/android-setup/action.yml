@@ -1,0 +1,81 @@
+name: 'Android setup (Vymalo)'
+description: >-
+  Get an Android job ready to build: set up Flutter + Java (+ optional Ruby for
+  Fastlane), then run the layered codegen. A convenience wrapper around the
+  `codegen` action's CLI plus toolchain setup; use `codegen` directly for the
+  full set of codegen knobs.
+
+inputs:
+  workspace:
+    default: ${{ github.workspace }}
+  project-dir:
+    default: 'mobile'
+  api-dir:
+    default: 'mobile/api'
+  codegen-tool-dir:
+    default: 'mobile/tool/openapi_codegen'
+  sdk-floor:
+    default: '>=3.12.0 <4.0.0'
+  clean:
+    description: 'Drop pubspec.lock + build_runner clean before the API build.'
+    default: 'true'
+  upgrade-dart-style:
+    default: 'false'
+  run-codegen:
+    description: 'Run the layered codegen after setup.'
+    default: 'true'
+  setup-flutter:
+    default: 'true'
+  setup-java:
+    default: 'true'
+  setup-ruby:
+    description: 'Set up Ruby + Bundler (only needed for Fastlane-based steps).'
+    default: 'false'
+  flutter-version:
+    default: '3.44.2'
+  flutter-channel:
+    default: 'stable'
+  java-version:
+    default: '21'
+  ruby-version:
+    default: '3.2'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Flutter
+      if: ${{ inputs.setup-flutter == 'true' }}
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ inputs.flutter-version }}
+        channel: ${{ inputs.flutter-channel }}
+        cache: true
+
+    - name: Set up Java
+      if: ${{ inputs.setup-java == 'true' }}
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+
+    - name: Set up Ruby + Bundler
+      if: ${{ inputs.setup-ruby == 'true' }}
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+        bundler-cache: true
+        working-directory: ${{ inputs.project-dir }}
+
+    - name: Layered codegen
+      if: ${{ inputs.run-codegen == 'true' }}
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: >-
+        dart pub get && dart run bin/flutter_tools.dart codegen
+        --workspace "${{ inputs.workspace }}"
+        --project-dir "${{ inputs.project-dir }}"
+        --api-dir "${{ inputs.api-dir }}"
+        --codegen-tool-dir "${{ inputs.codegen-tool-dir }}"
+        --sdk-floor "${{ inputs.sdk-floor }}"
+        --${{ inputs.clean == 'true' && 'clean' || 'no-clean' }}
+        --${{ inputs.upgrade-dart-style == 'true' && 'upgrade-dart-style' || 'no-upgrade-dart-style' }}

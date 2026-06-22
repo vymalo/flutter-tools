@@ -1,0 +1,72 @@
+name: 'Android build (Vymalo)'
+description: >-
+  Build a signed Android APK + AAB with one step. Decodes the keystore, writes
+  android/key.properties, runs `flutter build`, cleans up, and exposes the
+  artifact paths as outputs. With no keystore the APK falls back to unsigned
+  debug. No Fastlane/Ruby needed — the signing + build logic is in the Dart CLI.
+
+inputs:
+  workspace:
+    default: ${{ github.workspace }}
+  project-dir:
+    default: 'mobile'
+  artifacts:
+    description: 'apk | aab | both'
+    default: 'both'
+  build-number:
+    description: 'Android versionCode (--build-number). Empty = pubspec default.'
+    default: ''
+  dart-defines:
+    description: 'One KEY=VALUE per line → --dart-define for each.'
+    default: ''
+  keystore-base64:
+    description: 'base64 of the signing keystore. Empty → unsigned debug APK.'
+    default: ''
+  keystore-password:
+    default: ''
+  key-alias:
+    default: ''
+  key-password:
+    default: ''
+
+outputs:
+  signed:
+    description: 'true when a release-signed build was produced.'
+    value: ${{ steps.build.outputs.signed }}
+  apk-path:
+    description: 'Absolute path to the built APK.'
+    value: ${{ steps.build.outputs.apk-path }}
+  aab-path:
+    description: 'Absolute path to the built AAB (empty when unsigned/skipped).'
+    value: ${{ steps.build.outputs.aab-path }}
+
+runs:
+  using: composite
+  steps:
+    - id: build
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      env:
+        ANDROID_KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
+        ANDROID_KEYSTORE_PASSWORD: ${{ inputs.keystore-password }}
+        ANDROID_KEY_ALIAS: ${{ inputs.key-alias }}
+        ANDROID_KEY_PASSWORD: ${{ inputs.key-password }}
+      run: |
+        set -euo pipefail
+        dart pub get
+
+        args=(
+          android-build
+          --workspace "${{ inputs.workspace }}"
+          --project-dir "${{ inputs.project-dir }}"
+          --artifacts "${{ inputs.artifacts }}"
+        )
+        if [ -n "${{ inputs.build-number }}" ]; then
+          args+=(--build-number "${{ inputs.build-number }}")
+        fi
+        # One --dart-define per non-empty line of the dart-defines input.
+        while IFS= read -r line; do
+          [ -n "$line" ] && args+=(--dart-define "$line")
+        done <<< "${{ inputs.dart-defines }}"
+
+        dart run bin/flutter_tools.dart "${args[@]}"

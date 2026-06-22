@@ -58,6 +58,53 @@ OpenAPI Generator client → generated-API `*.g.dart` → app `build_runner`
 | `setup-flutter` / `setup-java` | `true` | skip if the caller already set them up |
 | `flutter-version` / `flutter-channel` / `java-version` | `3.44.2` / `stable` / `21` | |
 
+### `android-setup` — get an Android job build-ready
+
+Flutter + Java (+ optional Ruby for Fastlane) then the layered codegen, in one
+step.
+
+```yaml
+- uses: vymalo/flutter-tools/actions/android-setup@v0
+  with:
+    setup-flutter: 'false'   # arc runner already has it
+    setup-java: 'false'
+    clean: 'false'
+    upgrade-dart-style: 'true'
+```
+
+### `android-build` — signed APK / AAB (no Fastlane)
+
+Decodes the keystore, writes `android/key.properties`, runs `flutter build`,
+cleans up, and exposes the artifact paths. No keystore ⇒ unsigned debug APK.
+
+```yaml
+- id: build
+  uses: vymalo/flutter-tools/actions/android-build@v0
+  with:
+    build-number: ${{ github.run_number }}
+    artifacts: both                       # apk | aab | both
+    keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    keystore-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+    key-alias: ${{ vars.ANDROID_KEY_ALIAS }}
+    key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    dart-defines: |
+      MEDUSA_BASE_URL=https://api.vymalo.com
+      AUTH_BASE_URL=https://auth.vymalo.com
+      PUBLISHABLE_KEY=${{ secrets.MEDUSA_PUBLISHABLE_KEY }}
+# outputs: steps.build.outputs.{signed, apk-path, aab-path}
+```
+
+> The consumer's `android/app/build.gradle.kts` must read `key.properties` for
+> signing (the standard Flutter setup) — that part stays in your repo.
+
+## Quiet logs by default
+
+Every action runs **quiet** (chronic-style): a command's output is captured and
+printed **only if it fails** — a green run shows one tick per step. Turn on
+**Settings → … → step debug logging** (or set `RUNNER_DEBUG=1`, or pass
+`--verbose` to the CLI) to stream everything live. Implemented natively in the
+Dart `StepRunner`, so there's no `moreutils`/`chronic` dependency.
+
 ## The CLI (local use)
 
 ```sh
@@ -82,7 +129,7 @@ as the action surface stabilises.
 
 - `s3-presign` — upload an artifact to S3/MinIO + emit a presigned URL (replaces
   the ~40-line shell pasted 3×).
-- `fastlane-setup` — OS-aware Ruby/Bundler/CocoaPods setup (Linux `setup-ruby`
-  vs. the Mac Mini's manual cache).
-- `build-android` / `build-ios` — wrap the Fastlane build lanes.
-- Optionally a `workflow_call` that composes them end-to-end.
+- `ios-setup` / `ios-build` — the Mac Mini side (CocoaPods + the keychain/cert
+  dance + `xcodebuild` export). Bigger; iOS is signed-cert territory.
+- `play-submit` — upload an AAB to a Play track (today via Fastlane `supply`).
+- Optionally a `workflow_call` that composes setup → build → upload end-to-end.
