@@ -1,8 +1,9 @@
 # CI for the flutter-tools CLI itself: format, analyze, test.
 #
-# Runs on GitHub-hosted ubuntu (a ~30s job; free for public repos). To keep
-# everything on your own runners instead, swap `runs-on` for a self-hosted
-# label (e.g. arc-runner-set-vymalo) that has the Dart SDK.
+# Runs on the self-hosted ARC runner (GitHub-hosted runners are intentionally
+# unused — this account bills only for its own runners). `dart` is already on
+# PATH in the ghcr.io/vymalo/arc-runners image (it ships Flutter), so no SDK
+# setup step is needed.
 name: ci
 
 on:
@@ -15,12 +16,10 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set-vymalo
     steps:
-      - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
+      - uses: actions/checkout@v6
+      - run: dart --version
       - run: dart pub get
       - run: dart format --output=none --set-exit-if-changed .
       - run: dart analyze --fatal-infos
