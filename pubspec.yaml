@@ -1,0 +1,21 @@
+name: vymalo_flutter_tools
+description: >-
+  A small Dart CLI + a set of heavily-configurable GitHub composite actions that
+  package Vymalo's reusable Flutter CI/CD steps (OpenAPI codegen, build, S3
+  upload, …) so they can be shared across projects instead of copy-pasted YAML.
+version: 0.1.0
+publish_to: none
+repository: https://github.com/vymalo/flutter-tools
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  args: ^2.5.0
+
+dev_dependencies:
+  lints: ^4.0.0
+  test: ^1.25.0
+
+executables:
+  flutter-tools: flutter_tools

@@ -1,0 +1,86 @@
+name: 'Flutter codegen (Vymalo)'
+description: >-
+  Layered Flutter codegen as one reusable step: OpenAPI Generator client →
+  generated-API *.g.dart → app build_runner (riverpod/drift/go_router). The
+  orchestration is a Dart CLI in this repo; this action just sets up the
+  toolchain and runs it against the caller's workspace.
+
+inputs:
+  workspace:
+    description: 'Repo root the dir inputs resolve against.'
+    default: ${{ github.workspace }}
+  project-dir:
+    description: 'Flutter app directory.'
+    default: 'mobile'
+  api-dir:
+    description: 'Generated OpenAPI client package directory.'
+    default: 'mobile/api'
+  codegen-tool-dir:
+    description: 'Directory whose build_runner drives the OpenAPI Generator CLI.'
+    default: 'mobile/tool/openapi_codegen'
+  api-pubspec-template:
+    description: >-
+      Tracked pubspec template copied to <api-dir>/pubspec.yaml before resolve
+      (also restores it on runners where api-dir is gitignored). Wins over
+      sdk-floor when set.
+    default: ''
+  sdk-floor:
+    description: 'SDK constraint forced into the generated API pubspec.'
+    default: '>=3.12.0 <4.0.0'
+  clean:
+    description: 'Drop pubspec.lock + build_runner clean before the API build.'
+    default: 'true'
+  upgrade-dart-style:
+    description: 'dart pub upgrade dart_style before the API build.'
+    default: 'false'
+  setup-flutter:
+    description: 'Set up Flutter (disable if the caller already did).'
+    default: 'true'
+  setup-java:
+    description: 'Set up Java for the OpenAPI Generator CLI.'
+    default: 'true'
+  flutter-version:
+    description: 'Flutter version when setup-flutter is true.'
+    default: '3.44.2'
+  flutter-channel:
+    default: 'stable'
+  java-version:
+    description: 'Temurin JDK version when setup-java is true.'
+    default: '21'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Flutter
+      if: ${{ inputs.setup-flutter == 'true' }}
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ inputs.flutter-version }}
+        channel: ${{ inputs.flutter-channel }}
+        cache: true
+
+    - name: Set up Java (OpenAPI Generator CLI)
+      if: ${{ inputs.setup-java == 'true' }}
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+
+    - name: Resolve flutter-tools CLI dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: dart pub get
+
+    - name: Run layered codegen
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: >-
+        dart run bin/flutter_tools.dart codegen
+        --workspace "${{ inputs.workspace }}"
+        --project-dir "${{ inputs.project-dir }}"
+        --api-dir "${{ inputs.api-dir }}"
+        --codegen-tool-dir "${{ inputs.codegen-tool-dir }}"
+        --api-pubspec-template "${{ inputs.api-pubspec-template }}"
+        --sdk-floor "${{ inputs.sdk-floor }}"
+        --${{ inputs.clean == 'true' && 'clean' || 'no-clean' }}
+        --${{ inputs.upgrade-dart-style == 'true' && 'upgrade-dart-style' || 'no-upgrade-dart-style' }}
