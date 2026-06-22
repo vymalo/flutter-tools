@@ -3,5 +3,7 @@ library;
 
 export 'src/android_build.dart';
 export 'src/codegen.dart';
+export 'src/play_submit.dart';
 export 'src/runner.dart';
+export 'src/s3_upload.dart';
 export 'src/step.dart';

@@ -1,135 +1,136 @@
 # flutter-tools
 
-Reusable, **heavily-configurable** GitHub Actions for Vymalo's Flutter CI/CD —
-so the build/codegen/release steps live in **one** place and other repos just
-reference them, instead of copy-pasting workflow YAML.
-
-## Why
-
-`vymalo-shop`'s three mobile workflows (`mobile-ci`, `mobile-release`,
-`mobile-screenshots`) each carried the same ~30-line codegen block (with a
-literal *"keep this block in sync"* comment) plus duplicated S3-upload and
-Fastlane-setup shells. This repo packages those as composite actions so a change
-is made **once** and every workflow — in this project or the next one — picks it
-up via `uses:`.
-
-## Design
-
-- **Logic in Dart, glue in bash.** The orchestration is a small, unit-tested
-  Dart CLI (`bin/flutter_tools.dart`); each action is a thin composite wrapper
-  that sets up the toolchain and runs the CLI. Bash is only used where it's
-  genuinely trivial.
-- **Plan / execute split.** The CLI builds an inspectable `List<Step>` (run a
-  command, write/copy/delete a file, …) and then executes it. That makes the
-  behaviour testable without spawning a process — see `test/`. Use `--dry-run`
-  to print any plan.
-- **Free + self-hosted only.** Nothing here needs a paid service; it runs on
-  your own runners.
-
-## Actions
-
-### `codegen` — layered Flutter codegen
-
-OpenAPI Generator client → generated-API `*.g.dart` → app `build_runner`
-(riverpod / drift / go_router), as one step.
+**Reusable, heavily-configurable GitHub Actions for Flutter CI/CD.** Stop
+copy-pasting the same codegen / build / sign / upload YAML into every workflow
+(and every repo) — reference these instead.
 
 ```yaml
-- uses: vymalo/flutter-tools/actions/codegen@v0
-  with:
-    flutter-version: '3.44.2'
-    # everything below is optional — these are the defaults
-    project-dir: mobile
-    api-dir: mobile/api
-    codegen-tool-dir: mobile/tool/openapi_codegen
-    sdk-floor: '>=3.12.0 <4.0.0'
-    clean: 'true'              # drop pubspec.lock + build_runner clean (persistent runners)
-    # api-pubspec-template: mobile/openapi/api-pubspec.yaml  # restores a gitignored api/pubspec.yaml
-```
-
-| Input | Default | Notes |
-|-------|---------|-------|
-| `project-dir` | `mobile` | Flutter app dir |
-| `api-dir` | `mobile/api` | generated OpenAPI client package |
-| `codegen-tool-dir` | `mobile/tool/openapi_codegen` | drives the OpenAPI Generator CLI |
-| `api-pubspec-template` | — | tracked pubspec copied into `api-dir` (restores it when gitignored); wins over `sdk-floor` |
-| `sdk-floor` | `>=3.12.0 <4.0.0` | forced into the generated API pubspec |
-| `clean` | `true` | drop `pubspec.lock` + `build_runner clean` before the API build |
-| `upgrade-dart-style` | `false` | `dart pub upgrade dart_style` instead of `clean` |
-| `setup-flutter` / `setup-java` | `true` | skip if the caller already set them up |
-| `flutter-version` / `flutter-channel` / `java-version` | `3.44.2` / `stable` / `21` | |
-
-### `android-setup` — get an Android job build-ready
-
-Flutter + Java (+ optional Ruby for Fastlane) then the layered codegen, in one
-step.
-
-```yaml
-- uses: vymalo/flutter-tools/actions/android-setup@v0
-  with:
-    setup-flutter: 'false'   # arc runner already has it
-    setup-java: 'false'
-    clean: 'false'
-    upgrade-dart-style: 'true'
-```
-
-### `android-build` — signed APK / AAB (no Fastlane)
-
-Decodes the keystore, writes `android/key.properties`, runs `flutter build`,
-cleans up, and exposes the artifact paths. No keystore ⇒ unsigned debug APK.
-
-```yaml
-- id: build
-  uses: vymalo/flutter-tools/actions/android-build@v0
+- uses: vymalo/flutter-tools/actions/android-build@v0
   with:
     build-number: ${{ github.run_number }}
-    artifacts: both                       # apk | aab | both
     keystore-base64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-    keystore-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-    key-alias: ${{ vars.ANDROID_KEY_ALIAS }}
-    key-password: ${{ secrets.ANDROID_KEY_PASSWORD }}
-    dart-defines: |
-      MEDUSA_BASE_URL=https://api.vymalo.com
-      AUTH_BASE_URL=https://auth.vymalo.com
-      PUBLISHABLE_KEY=${{ secrets.MEDUSA_PUBLISHABLE_KEY }}
-# outputs: steps.build.outputs.{signed, apk-path, aab-path}
+    # …
 ```
 
-> The consumer's `android/app/build.gradle.kts` must read `key.properties` for
-> signing (the standard Flutter setup) — that part stays in your repo.
+Built for [Vymalo](https://github.com/vymalo), but **designed to be generic** —
+the inputs are wired so you can point them at any Flutter project layout. MIT
+licensed; use it for yours.
 
-## Quiet logs by default
+## What you get
 
-Every action runs **quiet** (chronic-style): a command's output is captured and
-printed **only if it fails** — a green run shows one tick per step. Turn on
-**Settings → … → step debug logging** (or set `RUNNER_DEBUG=1`, or pass
-`--verbose` to the CLI) to stream everything live. Implemented natively in the
-Dart `StepRunner`, so there's no `moreutils`/`chronic` dependency.
+| Action | Does |
+|--------|------|
+| [`codegen`](actions/codegen) | Layered codegen: OpenAPI client → generated `*.g.dart` → app `build_runner` (riverpod/drift/go_router) |
+| [`android-setup`](actions/android-setup) | Flutter + Java (+ optional Ruby) + codegen — get a job build-ready |
+| [`android-build`](actions/android-build) | Signed APK/AAB (`keystore → key.properties → flutter build`). **No Fastlane needed** |
+| [`play-submit`](actions/play-submit) | Upload an AAB to a Google Play track (configurable track / status / rollout) |
+| [`artifact-upload`](actions/artifact-upload) | Upload to GitHub Artifacts **and/or** S3/MinIO (+ presigned URL) |
 
-## The CLI (local use)
+## Why it's built this way
+
+- **Logic in Dart, glue in bash.** Each action is a thin composite wrapper around
+  a small, unit-tested Dart CLI. The orchestration is a pure, inspectable
+  `List<Step>` (run a command, write/copy/delete a file…) that's *planned* then
+  *executed* — so behaviour is testable without spawning a process. Run any
+  command with `--dry-run` to print its plan.
+- **Quiet by default.** Command output is captured and shown **only on failure**
+  (chronic-style) — a green run is one tick per step. Turn on GitHub step-debug
+  (`RUNNER_DEBUG=1`) or pass `--verbose` to stream everything. No `moreutils`
+  dependency; it's built into the Dart runner.
+- **No Docker.** Every action is composite/JS — nothing needs a Docker daemon, so
+  they work on self-hosted runners that don't have one. Where a good community
+  action exists it's reused ([`upload-artifact`](https://github.com/actions/upload-artifact),
+  [`install-aws-cli-action`](https://github.com/unfor19/install-aws-cli-action),
+  [`flutter-action`](https://github.com/subosito/flutter-action)).
+- **Free + self-hosted friendly.** No paid services. Runs the same on
+  GitHub-hosted or self-hosted runners (the actions read your toolchain from
+  PATH, with opt-in setup steps).
+
+## Quick start
+
+A minimal Android build-and-publish job:
+
+```yaml
+jobs:
+  android:
+    runs-on: ubuntu-latest   # or your self-hosted label
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: vymalo/flutter-tools/actions/android-setup@v0
+        with:
+          flutter-version: '3.x'
+
+      - id: build
+        uses: vymalo/flutter-tools/actions/android-build@v0
+        with:
+          build-number: ${{ github.run_number }}
+          keystore-base64:   ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          keystore-password: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          key-alias:         ${{ vars.ANDROID_KEY_ALIAS }}
+          key-password:      ${{ secrets.ANDROID_KEY_PASSWORD }}
+          dart-defines: |
+            API_URL=https://api.example.com
+
+      - uses: vymalo/flutter-tools/actions/artifact-upload@v0
+        with:
+          file: ${{ steps.build.outputs.aab-path }}
+          to-gh-artifacts: 'true'
+
+      - uses: vymalo/flutter-tools/actions/play-submit@v0
+        if: github.ref == 'refs/heads/main'
+        with:
+          aab: ${{ steps.build.outputs.aab-path }}
+          package-name: com.example.app
+          track: internal
+          service-account-json-base64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+```
+
+> Your `android/app/build.gradle.kts` must read `key.properties` for signing
+> (the standard Flutter setup) — that part stays in your repo.
+
+Each action's `action.yml` documents every input; the most useful knobs:
+
+- **`android-build`** — `artifacts: apk|aab|both`, `dart-defines` (one `KEY=VALUE`
+  per line), all signing inputs (omit them → unsigned debug APK). Outputs:
+  `apk-path`, `aab-path`, `signed`.
+- **`play-submit`** — `track`, `release-status` (`completed|draft|halted|inProgress`),
+  `rollout` (staged %), `changes-not-sent-for-review`.
+- **`artifact-upload`** — `to-gh-artifacts`, `to-s3` + `s3-bucket`/`s3-key`/
+  `s3-endpoint` (MinIO). Outputs: `s3-url` (presigned), `s3-key`.
+- **`codegen`** — `project-dir`, `api-dir`, `codegen-tool-dir`, `sdk-floor`,
+  `clean`, `api-pubspec-template`. Tuned for an OpenAPI-generated client + a
+  layered `build_runner`; point the dirs at your layout.
+
+## The CLI (run it locally)
 
 ```sh
 dart pub get
-dart run bin/flutter_tools.dart codegen --workspace . --dry-run   # print the plan
-dart run bin/flutter_tools.dart codegen --workspace .             # run it
-dart test                                                         # unit tests
+dart run bin/flutter_tools.dart android-build --dry-run   # print the plan
+dart run bin/flutter_tools.dart play-submit  --help
+dart test
 ```
 
-## Using a private copy of this repo
+## Compatibility
 
-If `vymalo/flutter-tools` is private, enable **Settings → Actions → General →
-Access → "Accessible from repositories owned by the organization"** so other
-org repos can `uses:` it. (Public needs nothing.)
+- **Runners:** GitHub-hosted or self-hosted Linux. macOS works for the
+  Dart/Flutter actions; the keychain-heavy iOS build isn't packaged yet (roadmap).
+- **Private consumers:** if you fork this private, enable **Settings → Actions →
+  Access → "Accessible from repositories owned by the organization"**. Public
+  needs nothing.
+- **Pin a version:** `@v0` (moving major) or a release tag like `@v0.3.0`.
 
-## Versioning
+## Roadmap
 
-Reference a moving major tag (`@v0`) or pin a release (`@v0.1.0`). Tag releases
-as the action surface stabilises.
+`ios-setup` / `ios-build` (the keychain + `xcodebuild` export), and an optional
+`workflow_call` that composes setup → build → upload end-to-end.
 
-## Roadmap (extract from vymalo-shop next)
+## Contributing
 
-- `s3-presign` — upload an artifact to S3/MinIO + emit a presigned URL (replaces
-  the ~40-line shell pasted 3×).
-- `ios-setup` / `ios-build` — the Mac Mini side (CocoaPods + the keychain/cert
-  dance + `xcodebuild` export). Bigger; iOS is signed-cert territory.
-- `play-submit` — upload an AAB to a Play track (today via Fastlane `supply`).
-- Optionally a `workflow_call` that composes setup → build → upload end-to-end.
+It's a normal Dart package — `dart pub get`, `dart test`, `dart analyze`. Logic
+goes in `lib/src/` as a pure planner (`plan…()` → `List<Step>`) with a unit test;
+the action is a thin `action.yml` wrapper that runs the CLI. PRs welcome.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

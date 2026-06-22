@@ -12,7 +12,9 @@ Future<void> main(List<String> args) async {
     'Reusable Flutter CI/CD steps for Vymalo projects.',
   )
     ..addCommand(CodegenCommand())
-    ..addCommand(AndroidBuildCommand());
+    ..addCommand(AndroidBuildCommand())
+    ..addCommand(PlaySubmitCommand())
+    ..addCommand(S3UploadCommand());
 
   try {
     await runner.run(args);
@@ -173,14 +175,167 @@ class AndroidBuildCommand extends Command<void> {
       lines.add('aab-path='
           '${resolveIn(appDir, androidArtifactPath(AndroidArtifact.aab, signed: c.signed))}');
     }
-    final outFile = Platform.environment['GITHUB_OUTPUT'];
-    if (outFile != null && outFile.isNotEmpty) {
-      File(outFile)
-          .writeAsStringSync('${lines.join('\n')}\n', mode: FileMode.append);
-    } else {
-      for (final l in lines) {
-        stdout.writeln('output: $l');
+    _emitOutput({
+      for (final l in lines)
+        l.split('=').first: l.split('=').sublist(1).join('='),
+    });
+  }
+}
+
+/// Append `name=value` pairs to $GITHUB_OUTPUT (or print them locally).
+void _emitOutput(Map<String, String> outputs) {
+  final body = outputs.entries.map((e) => '${e.key}=${e.value}').join('\n');
+  final outFile = Platform.environment['GITHUB_OUTPUT'];
+  if (outFile != null && outFile.isNotEmpty) {
+    File(outFile).writeAsStringSync('$body\n', mode: FileMode.append);
+  } else {
+    for (final e in outputs.entries) {
+      stdout.writeln('output: ${e.key}=${e.value}');
+    }
+  }
+}
+
+/// `flutter-tools play-submit` — upload an AAB to a Google Play track via
+/// Fastlane `supply`. Service account from GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64
+/// (or GOOGLE_PLAY_SERVICE_ACCOUNT_JSON plaintext).
+class PlaySubmitCommand extends Command<void> {
+  PlaySubmitCommand() {
+    argParser
+      ..addOption('aab', mandatory: true, help: 'Path to the .aab to upload.')
+      ..addOption('package-name', mandatory: true)
+      ..addOption('track', defaultsTo: 'internal')
+      ..addOption('release-status',
+          defaultsTo: 'completed',
+          allowed: ['completed', 'draft', 'halted', 'inProgress'])
+      ..addOption('rollout', help: 'Staged-rollout fraction, e.g. 0.2.')
+      ..addFlag('skip-upload-apk', defaultsTo: true)
+      ..addFlag('skip-upload-metadata', defaultsTo: true)
+      ..addFlag('skip-upload-changelogs', defaultsTo: true)
+      ..addFlag('skip-upload-images', defaultsTo: true)
+      ..addFlag('skip-upload-screenshots', defaultsTo: true)
+      ..addFlag('changes-not-sent-for-review', defaultsTo: false)
+      ..addOption('fastlane', defaultsTo: 'fastlane')
+      ..addFlag('verbose', defaultsTo: false)
+      ..addFlag('dry-run', defaultsTo: false);
+  }
+
+  @override
+  final String name = 'play-submit';
+  @override
+  final String description =
+      'Upload an AAB to a Google Play track (Fastlane supply).';
+
+  @override
+  Future<void> run() async {
+    final a = argResults!;
+    final env = Platform.environment;
+    final b64 = (env['GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64'] ?? '').trim();
+    final plain = env['GOOGLE_PLAY_SERVICE_ACCOUNT_JSON'] ?? '';
+    if (b64.isEmpty && plain.isEmpty) {
+      throw UsageException(
+          'Set GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 (or _JSON).', usage);
+    }
+    final json = b64.isNotEmpty
+        ? utf8.decode(base64.decode(b64.replaceAll(RegExp(r'\s'), '')))
+        : plain;
+    final keyFile = File('${Directory.systemTemp.path}/'
+        'play-${DateTime.now().microsecondsSinceEpoch}.json');
+    keyFile.writeAsStringSync(json);
+
+    final config = PlaySubmitConfig(
+      aabPath: a.option('aab')!,
+      packageName: a.option('package-name')!,
+      jsonKeyPath: keyFile.path,
+      track: a.option('track')!,
+      releaseStatus: a.option('release-status')!,
+      rollout: a.option('rollout'),
+      skipUploadApk: a.flag('skip-upload-apk'),
+      skipUploadMetadata: a.flag('skip-upload-metadata'),
+      skipUploadChangelogs: a.flag('skip-upload-changelogs'),
+      skipUploadImages: a.flag('skip-upload-images'),
+      skipUploadScreenshots: a.flag('skip-upload-screenshots'),
+      changesNotSentForReview: a.flag('changes-not-sent-for-review'),
+      fastlane: a.option('fastlane')!,
+    );
+
+    try {
+      await StepRunner(dryRun: a.flag('dry-run'), verbose: _verbose(a))
+          .run(planPlaySubmit(config));
+    } finally {
+      if (keyFile.existsSync()) keyFile.deleteSync();
+    }
+  }
+}
+
+/// `flutter-tools s3-upload` — copy a file to S3/MinIO + emit a presigned URL.
+/// AWS credentials come from the standard environment.
+class S3UploadCommand extends Command<void> {
+  S3UploadCommand() {
+    argParser
+      ..addOption('file', mandatory: true)
+      ..addOption('bucket', mandatory: true)
+      ..addOption('key', mandatory: true)
+      ..addOption('endpoint',
+          defaultsTo: '', help: 'S3-compatible endpoint URL (e.g. MinIO).')
+      ..addOption('expires-in', defaultsTo: '604800')
+      ..addFlag('make-bucket',
+          defaultsTo: true, help: 'Create the bucket if it does not exist.')
+      ..addOption('aws', defaultsTo: 'aws')
+      ..addFlag('verbose', defaultsTo: false)
+      ..addFlag('dry-run', defaultsTo: false);
+  }
+
+  @override
+  final String name = 's3-upload';
+  @override
+  final String description =
+      'Upload a file to S3/MinIO and emit a presigned URL.';
+
+  @override
+  Future<void> run() async {
+    final a = argResults!;
+    final config = S3UploadConfig(
+      file: a.option('file')!,
+      bucket: a.option('bucket')!,
+      key: a.option('key')!,
+      endpoint: a.option('endpoint')!,
+      expiresIn: int.parse(a.option('expires-in')!),
+      aws: a.option('aws')!,
+    );
+    final dryRun = a.flag('dry-run');
+
+    // head-bucket || mb — conditional, so it lives here, not in the plan.
+    if (a.flag('make-bucket') && !dryRun) {
+      final head = await Process.run(config.aws, [
+        's3api',
+        'head-bucket',
+        '--bucket',
+        config.bucket,
+        ...endpointFlag(config)
+      ]);
+      if (head.exitCode != 0) {
+        final mb = await Process.run(config.aws,
+            ['s3', 'mb', 's3://${config.bucket}', ...endpointFlag(config)]);
+        if (mb.exitCode != 0) {
+          stderr.writeln(mb.stderr);
+          exit(1);
+        }
       }
     }
+
+    await StepRunner(dryRun: dryRun, verbose: _verbose(a))
+        .run(planS3Upload(config));
+
+    if (dryRun) {
+      _emitOutput({'s3-key': config.key, 's3-url': '<presigned-url>'});
+      return;
+    }
+    final presign = await Process.run(config.aws, presignArgs(config));
+    if (presign.exitCode != 0) {
+      stderr.writeln(presign.stderr);
+      exit(1);
+    }
+    _emitOutput(
+        {'s3-key': config.key, 's3-url': (presign.stdout as String).trim()});
   }
 }

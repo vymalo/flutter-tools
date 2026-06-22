@@ -1,0 +1,84 @@
+name: 'Artifact upload (Vymalo)'
+description: >-
+  Upload a build artifact (APK/AAB/IPA/…) to GitHub Artifacts and/or an
+  S3-compatible store (S3, MinIO) and get a presigned download URL. Composes
+  actions/upload-artifact + unfor19/install-aws-cli-action (both non-Docker).
+
+inputs:
+  file:
+    description: 'Path to the artifact (relative to the workspace, or absolute).'
+    required: true
+  name:
+    description: 'GitHub Artifact name (defaults to the file basename).'
+    default: ''
+  to-gh-artifacts:
+    description: 'Upload to GitHub Artifacts.'
+    default: 'true'
+  retention-days:
+    default: '30'
+  to-s3:
+    description: 'Upload to S3/MinIO and emit a presigned URL.'
+    default: 'false'
+  s3-bucket:
+    default: ''
+  s3-key:
+    description: 'Object key (required when to-s3 is true).'
+    default: ''
+  s3-endpoint:
+    description: 'S3-compatible endpoint URL (e.g. MinIO). Empty = real AWS S3.'
+    default: ''
+  s3-expires-in:
+    description: 'Presigned-URL lifetime in seconds.'
+    default: '604800'
+  s3-make-bucket:
+    description: 'Create the bucket if it does not exist.'
+    default: 'true'
+
+outputs:
+  artifact-name:
+    value: ${{ steps.meta.outputs.name }}
+  s3-url:
+    description: 'Presigned download URL (empty when to-s3 is false).'
+    value: ${{ steps.s3.outputs.s3-url }}
+  s3-key:
+    value: ${{ steps.s3.outputs.s3-key }}
+
+runs:
+  using: composite
+  steps:
+    - id: meta
+      shell: bash
+      run: |
+        file="${{ inputs.file }}"
+        abs="$(cd "$(dirname "$file")" 2>/dev/null && pwd)/$(basename "$file")" || abs="$file"
+        name="${{ inputs.name }}"
+        [ -z "$name" ] && name="$(basename "$file")"
+        echo "file-abs=$abs" >> "$GITHUB_OUTPUT"
+        echo "name=$name" >> "$GITHUB_OUTPUT"
+
+    - name: Upload to GitHub Artifacts
+      if: ${{ inputs.to-gh-artifacts == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.meta.outputs.name }}
+        path: ${{ inputs.file }}
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Ensure AWS CLI
+      if: ${{ inputs.to-s3 == 'true' }}
+      uses: unfor19/install-aws-cli-action@v1
+
+    - id: s3
+      if: ${{ inputs.to-s3 == 'true' }}
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: |
+        set -euo pipefail
+        dart pub get
+        dart run bin/flutter_tools.dart s3-upload \
+          --file "${{ steps.meta.outputs.file-abs }}" \
+          --bucket "${{ inputs.s3-bucket }}" \
+          --key "${{ inputs.s3-key }}" \
+          --endpoint "${{ inputs.s3-endpoint }}" \
+          --expires-in "${{ inputs.s3-expires-in }}" \
+          --${{ inputs.s3-make-bucket == 'true' && 'make-bucket' || 'no-make-bucket' }}

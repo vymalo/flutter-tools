@@ -1,0 +1,71 @@
+name: 'Play Store submit (Vymalo)'
+description: >-
+  Upload an AAB to a Google Play track via Fastlane `supply` — configurable
+  track, release status and staged rollout. No Docker (works on self-hosted
+  runners); only an AAB-upload, metadata/images/changelogs are skipped.
+
+inputs:
+  aab:
+    description: 'Path to the .aab to upload.'
+    required: true
+  package-name:
+    description: 'Application id, e.g. com.acme.app.'
+    required: true
+  service-account-json-base64:
+    description: 'base64 of the Google Play service-account JSON.'
+    default: ''
+  service-account-json:
+    description: 'Plaintext service-account JSON (alternative to the base64 input).'
+    default: ''
+  track:
+    description: 'internal | alpha | beta | production (or a custom track).'
+    default: 'internal'
+  release-status:
+    description: 'completed | draft | halted | inProgress.'
+    default: 'completed'
+  rollout:
+    description: 'Staged-rollout fraction (e.g. 0.2) — for inProgress/halted.'
+    default: ''
+  changes-not-sent-for-review:
+    description: 'Do not send changes for review (managed publishing).'
+    default: 'false'
+  setup-ruby:
+    description: 'Set up Ruby first (off when the runner already has it).'
+    default: 'false'
+  ruby-version:
+    default: '3.2'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Ruby
+      if: ${{ inputs.setup-ruby == 'true' }}
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+
+    - name: Ensure fastlane
+      shell: bash
+      run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document
+
+    - name: Upload to Play
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      env:
+        GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ inputs.service-account-json-base64 }}
+        GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ inputs.service-account-json }}
+      run: |
+        set -euo pipefail
+        dart pub get
+        args=(
+          play-submit
+          --aab "${{ inputs.aab }}"
+          --package-name "${{ inputs.package-name }}"
+          --track "${{ inputs.track }}"
+          --release-status "${{ inputs.release-status }}"
+          --${{ inputs.changes-not-sent-for-review == 'true' && 'changes-not-sent-for-review' || 'no-changes-not-sent-for-review' }}
+        )
+        if [ -n "${{ inputs.rollout }}" ]; then
+          args+=(--rollout "${{ inputs.rollout }}")
+        fi
+        dart run bin/flutter_tools.dart "${args[@]}"
