@@ -21,6 +21,7 @@ void main() {
       expect(labels, [
         'Create CI keychain',
         'Default keychain',
+        'Add keychain to the search list',
         'Unlock keychain',
         'Keychain settings (no auto-lock)',
         'Import distribution certificate',
@@ -35,6 +36,17 @@ void main() {
         'flutter build ipa (release, --no-codesign)',
         'xcodebuild -exportArchive (sign + export App Store IPA)',
       ]);
+    });
+
+    test(
+        'adds the keychain to the user search list (else exportArchive can '
+        'not find the identity)', () {
+      final step = planIosBuild(_cfg())
+          .whereType<RunStep>()
+          .firstWhere((s) => s.label == 'Add keychain to the search list');
+      expect(step.executable, 'sh');
+      expect(step.args.last, contains('security list-keychains -d user -s'));
+      expect(step.args.last, contains('/tmp/ci.keychain-db'));
     });
 
     test('WWDR imports are best-effort (allowFailure)', () {
