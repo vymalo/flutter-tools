@@ -38,6 +38,13 @@ inputs:
 runs:
   using: composite
   steps:
+    # The CLI shells out to bare `fastlane`, so it must be on PATH. A self-hosted
+    # Mac runner may only have it via Bundler (vendor/bundle) — install a global
+    # one when absent. No-op when fastlane is already on PATH.
+    - name: Ensure fastlane
+      shell: bash
+      run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document
+
     - shell: bash
       working-directory: ${{ github.action_path }}/../..
       env:
