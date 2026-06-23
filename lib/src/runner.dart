@@ -65,15 +65,26 @@ class StepRunner {
         final f = File(step.path);
         if (!f.existsSync()) throw StepFailure(step, 66); // EX_NOINPUT
         final content = f.readAsStringSync();
-        final m =
-            RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
-                .firstMatch(content);
-        if (m == null) throw StepFailure(step, 65); // EX_DATAERR
+        // The marketing x.y.z is either the override (tag-owned) or the file's
+        // existing one. Either way a `version:` line must exist to rewrite.
+        final String marketing;
+        if (step.marketingVersion != null) {
+          if (!RegExp(r'^version:.*$', multiLine: true).hasMatch(content)) {
+            throw StepFailure(step, 65); // EX_DATAERR — no version: line
+          }
+          marketing = step.marketingVersion!;
+        } else {
+          final m =
+              RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
+                  .firstMatch(content);
+          if (m == null) throw StepFailure(step, 65); // EX_DATAERR
+          marketing = m.group(1)!;
+        }
         f.writeAsStringSync(content.replaceFirst(
           RegExp(r'^version:.*$', multiLine: true),
-          'version: ${m.group(1)}+${step.buildNumber}',
+          'version: $marketing+${step.buildNumber}',
         ));
-        _log('  ✓ stamped ${step.path} -> ${m.group(1)}+${step.buildNumber}');
+        _log('  ✓ stamped ${step.path} -> $marketing+${step.buildNumber}');
     }
   }
 

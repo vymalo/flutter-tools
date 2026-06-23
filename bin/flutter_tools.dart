@@ -45,6 +45,9 @@ class VersionStampCommand extends Command<void> {
       ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption('build-number',
           mandatory: true, help: 'The +build value (e.g. the CI run number).')
+      ..addOption('version',
+          help: 'Marketing x.y.z to set (overrides pubspec; e.g. a git-tag '
+              'version). Omit to keep the existing pubspec version.')
       ..addFlag('verbose', defaultsTo: false)
       ..addFlag('dry-run', defaultsTo: false);
   }
@@ -58,10 +61,12 @@ class VersionStampCommand extends Command<void> {
   @override
   Future<void> run() async {
     final a = argResults!;
+    final v = a.option('version');
     final config = VersionStampConfig(
       workspace: a.option('workspace')!,
       projectDir: a.option('project-dir')!,
       buildNumber: a.option('build-number')!,
+      marketingVersion: (v != null && v.isNotEmpty) ? v : null,
     );
     await StepRunner(dryRun: a.flag('dry-run'), verbose: _verbose(a))
         .run(planVersionStamp(config));
@@ -71,11 +76,12 @@ class VersionStampCommand extends Command<void> {
   void _emitVersionOutputs(VersionStampConfig c) {
     final pubspec =
         File(resolveIn(resolveIn(c.workspace, c.projectDir), 'pubspec.yaml'));
-    final marketing = pubspec.existsSync()
-        ? RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
-            .firstMatch(pubspec.readAsStringSync())
-            ?.group(1)
-        : null;
+    final marketing = c.marketingVersion ??
+        (pubspec.existsSync()
+            ? RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
+                .firstMatch(pubspec.readAsStringSync())
+                ?.group(1)
+            : null);
     final version = marketing ?? '0.0.0';
     _emitOutput({
       'version': version,
