@@ -72,6 +72,32 @@ runs:
       working-directory: ${{ inputs.project-dir }}
       run: bundle config set path 'vendor/bundle' && bundle install --jobs 4
 
+    # Expose `fastlane` on PATH for later steps. ios-build / *-submit shell out to
+    # a bare `fastlane`, but a self-hosted Mac runner only has it via Bundler. Make
+    # the BUNDLED fastlane (just installed) available as a plain `fastlane` binstub
+    # (with BUNDLE_GEMFILE so it resolves from any cwd), falling back to a global
+    # gem. No-op when fastlane is already on PATH. (GITHUB_PATH/GITHUB_ENV persist
+    # to subsequent steps in the same job.)
+    - name: Expose fastlane on PATH
+      shell: bash
+      working-directory: ${{ inputs.project-dir }}
+      run: |
+        set -euo pipefail
+        if command -v fastlane >/dev/null 2>&1; then
+          echo "fastlane already on PATH: $(command -v fastlane)"
+          exit 0
+        fi
+        if bundle show fastlane >/dev/null 2>&1; then
+          bundle binstubs fastlane --force --path "$RUNNER_TEMP/flbin"
+          echo "$RUNNER_TEMP/flbin" >> "$GITHUB_PATH"
+          echo "BUNDLE_GEMFILE=$(pwd)/Gemfile" >> "$GITHUB_ENV"
+          echo "Exposed bundled fastlane via binstub at $RUNNER_TEMP/flbin"
+        else
+          gem install fastlane --no-document
+          echo "$(ruby -e 'puts Gem.bindir')" >> "$GITHUB_PATH"
+          echo "Installed global fastlane to $(ruby -e 'puts Gem.bindir')"
+        fi
+
     - name: Cache Pods
       if: ${{ inputs.pod-install == 'true' }}
       uses: actions/cache@v4
