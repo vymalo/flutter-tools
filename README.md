@@ -21,9 +21,14 @@ licensed; use it for yours.
 | Action | Does |
 |--------|------|
 | [`codegen`](actions/codegen) | Layered codegen: OpenAPI client → generated `*.g.dart` → app `build_runner` (riverpod/drift/go_router) |
-| [`android-setup`](actions/android-setup) | Flutter + Java (+ optional Ruby) + codegen — get a job build-ready |
+| [`version-stamp`](actions/version-stamp) | Stamp a build number into pubspec (`version: x.y.z+<build>`) — unique/increasing CFBundleVersion / versionCode per build |
+| [`android-setup`](actions/android-setup) | Flutter + Java (+ optional Ruby) + codegen — get an Android job build-ready |
 | [`android-build`](actions/android-build) | Signed APK/AAB (`keystore → key.properties → flutter build`). **No Fastlane needed** |
 | [`play-submit`](actions/play-submit) | Upload an AAB to a Google Play track (configurable track / status / rollout) |
+| [`ios-setup`](actions/ios-setup) | Flutter + Java + codegen + Bundler + `pod install` — get an iOS job build-ready (Mac runner) |
+| [`ios-build`](actions/ios-build) | Signed App Store IPA (CI keychain → `flutter build ipa --no-codesign` → `xcodebuild -exportArchive`; the flutter#176636 workaround) |
+| [`testflight-submit`](actions/testflight-submit) | Upload an IPA to TestFlight (Fastlane pilot, ASC API key) |
+| [`app-store-submit`](actions/app-store-submit) | Upload IPA and/or screenshots to App Store Connect, optionally submit for review (Fastlane deliver) |
 | [`artifact-upload`](actions/artifact-upload) | Upload to GitHub Artifacts **and/or** S3/MinIO (+ presigned URL) |
 
 ## Why it's built this way
@@ -113,17 +118,19 @@ dart test
 
 ## Compatibility
 
-- **Runners:** GitHub-hosted or self-hosted Linux. macOS works for the
-  Dart/Flutter actions; the keychain-heavy iOS build isn't packaged yet (roadmap).
+- **Runners:** GitHub-hosted or self-hosted Linux for the Android/Dart actions;
+  a **macOS runner with Xcode** for `ios-build` / `ios-setup` (the keychain +
+  `xcodebuild -exportArchive`).
 - **Private consumers:** if you fork this private, enable **Settings → Actions →
   Access → "Accessible from repositories owned by the organization"**. Public
   needs nothing.
-- **Pin a version:** `@v0` (moving major) or a release tag like `@v0.3.0`.
+- **Pin a version:** `@v0` (moving major) or a release tag like `@v0.4.0`.
 
 ## Roadmap
 
-`ios-setup` / `ios-build` (the keychain + `xcodebuild` export), and an optional
-`workflow_call` that composes setup → build → upload end-to-end.
+A `screenshots` action (the emulator/simulator device-matrix capture + store
+upload), and an optional `workflow_call` that composes setup → version-stamp →
+build → upload end-to-end for a release.
 
 ## Contributing
 
