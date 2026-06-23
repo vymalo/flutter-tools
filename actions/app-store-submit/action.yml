@@ -1,0 +1,62 @@
+name: 'App Store submit (Vymalo)'
+description: >-
+  Upload an IPA and/or screenshots to App Store Connect via Fastlane deliver
+  (upload_to_app_store), optionally submitting the version for review. deliver
+  attaches to an EDITABLE App Store version, so app-version (x.y.z) must exist on
+  App Store Connect. Auth is an ASC API key. No Docker.
+
+inputs:
+  workspace:
+    default: ${{ github.workspace }}
+  project-dir:
+    default: 'mobile'
+  ipa:
+    description: 'IPA path (binary mode). Default: first under build/ios/ipa.'
+    default: ''
+  app-version:
+    description: 'Marketing x.y.z. Default: read from pubspec.'
+    default: ''
+  screenshots-path:
+    description: 'Screenshots dir to deliver (screenshots mode).'
+    default: ''
+  submit-for-review:
+    default: 'false'
+  skip-binary-upload:
+    description: 'Screenshots-only upload.'
+    default: 'false'
+  skip-screenshots:
+    default: 'true'
+  overwrite-screenshots:
+    default: 'false'
+  asc-key-id:
+    default: ''
+  asc-issuer-id:
+    default: ''
+  asc-api-key-base64:
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      env:
+        APP_STORE_CONNECT_KEY_ID: ${{ inputs.asc-key-id }}
+        APP_STORE_CONNECT_ISSUER_ID: ${{ inputs.asc-issuer-id }}
+        APP_STORE_CONNECT_API_KEY_BASE64: ${{ inputs.asc-api-key-base64 }}
+      run: |
+        set -euo pipefail
+        dart pub get
+        args=(
+          app-store-submit
+          --workspace "${{ inputs.workspace }}"
+          --project-dir "${{ inputs.project-dir }}"
+          --${{ inputs.submit-for-review == 'true' && 'submit-for-review' || 'no-submit-for-review' }}
+          --${{ inputs.skip-binary-upload == 'true' && 'skip-binary-upload' || 'no-skip-binary-upload' }}
+          --${{ inputs.skip-screenshots == 'true' && 'skip-screenshots' || 'no-skip-screenshots' }}
+          --${{ inputs.overwrite-screenshots == 'true' && 'overwrite-screenshots' || 'no-overwrite-screenshots' }}
+        )
+        [ -n "${{ inputs.ipa }}" ]              && args+=(--ipa "${{ inputs.ipa }}")
+        [ -n "${{ inputs.app-version }}" ]      && args+=(--app-version "${{ inputs.app-version }}")
+        [ -n "${{ inputs.screenshots-path }}" ] && args+=(--screenshots-path "${{ inputs.screenshots-path }}")
+        dart run bin/flutter_tools.dart "${args[@]}"
