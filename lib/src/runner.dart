@@ -61,6 +61,19 @@ class StepRunner {
               ),
         );
         _log('  ✓ patched ${step.path}');
+      case PatchVersionStep():
+        final f = File(step.path);
+        if (!f.existsSync()) throw StepFailure(step, 66); // EX_NOINPUT
+        final content = f.readAsStringSync();
+        final m =
+            RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
+                .firstMatch(content);
+        if (m == null) throw StepFailure(step, 65); // EX_DATAERR
+        f.writeAsStringSync(content.replaceFirst(
+          RegExp(r'^version:.*$', multiLine: true),
+          'version: ${m.group(1)}+${step.buildNumber}',
+        ));
+        _log('  ✓ stamped ${step.path} -> ${m.group(1)}+${step.buildNumber}');
     }
   }
 

@@ -7,3 +7,4 @@ export 'src/play_submit.dart';
 export 'src/runner.dart';
 export 'src/s3_upload.dart';
 export 'src/step.dart';
+export 'src/version_stamp.dart';
