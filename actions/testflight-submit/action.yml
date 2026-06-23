@@ -1,0 +1,44 @@
+name: 'TestFlight submit (Vymalo)'
+description: >-
+  Upload an IPA to TestFlight via Fastlane pilot (upload_to_testflight). Auth is
+  an App Store Connect API key (passed as a generated JSON key file). No Docker.
+
+inputs:
+  workspace:
+    default: ${{ github.workspace }}
+  project-dir:
+    default: 'mobile'
+  ipa:
+    description: 'IPA path. Default: first found under build/ios/ipa.'
+    default: ''
+  asc-key-id:
+    default: ''
+  asc-issuer-id:
+    default: ''
+  asc-api-key-base64:
+    description: 'base64 of the App Store Connect .p8 API key.'
+    default: ''
+  skip-waiting:
+    description: 'skip_waiting_for_build_processing.'
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      env:
+        APP_STORE_CONNECT_KEY_ID: ${{ inputs.asc-key-id }}
+        APP_STORE_CONNECT_ISSUER_ID: ${{ inputs.asc-issuer-id }}
+        APP_STORE_CONNECT_API_KEY_BASE64: ${{ inputs.asc-api-key-base64 }}
+      run: |
+        set -euo pipefail
+        dart pub get
+        args=(
+          testflight-submit
+          --workspace "${{ inputs.workspace }}"
+          --project-dir "${{ inputs.project-dir }}"
+          --${{ inputs.skip-waiting == 'true' && 'skip-waiting' || 'no-skip-waiting' }}
+        )
+        [ -n "${{ inputs.ipa }}" ] && args+=(--ipa "${{ inputs.ipa }}")
+        dart run bin/flutter_tools.dart "${args[@]}"

@@ -16,6 +16,8 @@ Future<void> main(List<String> args) async {
     ..addCommand(VersionStampCommand())
     ..addCommand(AndroidBuildCommand())
     ..addCommand(IosBuildCommand())
+    ..addCommand(TestflightSubmitCommand())
+    ..addCommand(AppStoreSubmitCommand())
     ..addCommand(PlaySubmitCommand())
     ..addCommand(S3UploadCommand());
 
@@ -331,6 +333,166 @@ class AndroidBuildCommand extends Command<void> {
       for (final l in lines)
         l.split('=').first: l.split('=').sublist(1).join('='),
     });
+  }
+}
+
+/// Write an App Store Connect API key JSON file (`{key_id, issuer_id, key}`)
+/// from the environment, for fastlane's `api_key_path:`. Returns its path.
+/// APP_STORE_CONNECT_KEY_ID / _ISSUER_ID / _API_KEY_BASE64 (base64 of the .p8).
+String _writeAscApiKeyJson() {
+  final env = Platform.environment;
+  final p8 = utf8.decode(base64.decode(
+      (env['APP_STORE_CONNECT_API_KEY_BASE64'] ?? '')
+          .replaceAll(RegExp(r'\s'), '')));
+  final path =
+      '${Directory.systemTemp.path}/asc-${DateTime.now().microsecondsSinceEpoch}.json';
+  File(path).writeAsStringSync(jsonEncode({
+    'key_id': (env['APP_STORE_CONNECT_KEY_ID'] ?? '').trim(),
+    'issuer_id': (env['APP_STORE_CONNECT_ISSUER_ID'] ?? '').trim(),
+    'key': p8,
+    'in_house': false,
+  }));
+  return path;
+}
+
+/// Find the first built `.ipa` under `<workspace>/<projectDir>/build/ios/ipa`.
+String _findIpa(String workspace, String projectDir) {
+  final dir =
+      Directory(resolveIn(resolveIn(workspace, projectDir), 'build/ios/ipa'));
+  if (!dir.existsSync()) return '';
+  final hits = dir
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.ipa'));
+  return hits.isEmpty ? '' : hits.first.path;
+}
+
+/// Resolve the marketing version (`x.y.z`) from `<projectDir>/pubspec.yaml`.
+String _pubspecVersion(String workspace, String projectDir) {
+  final f = File(resolveIn(resolveIn(workspace, projectDir), 'pubspec.yaml'));
+  if (!f.existsSync()) return '';
+  return RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
+          .firstMatch(f.readAsStringSync())
+          ?.group(1) ??
+      '';
+}
+
+/// `flutter-tools testflight-submit` — upload an IPA to TestFlight via Fastlane
+/// pilot. ASC API key from the environment.
+class TestflightSubmitCommand extends Command<void> {
+  TestflightSubmitCommand() {
+    argParser
+      ..addOption('workspace', defaultsTo: Directory.current.path)
+      ..addOption('project-dir', defaultsTo: 'mobile')
+      ..addOption('ipa', help: 'IPA path. Default: first under build/ios/ipa.')
+      ..addOption('fastlane', defaultsTo: 'fastlane')
+      ..addFlag('skip-waiting', defaultsTo: true)
+      ..addFlag('verbose', defaultsTo: false)
+      ..addFlag('dry-run', defaultsTo: false);
+  }
+
+  @override
+  final String name = 'testflight-submit';
+  @override
+  final String description = 'Upload an IPA to TestFlight (Fastlane pilot).';
+
+  @override
+  Future<void> run() async {
+    final a = argResults!;
+    final dryRun = a.flag('dry-run');
+    final ws = a.option('workspace')!;
+    final apiKey = dryRun ? '<asc-key.json>' : _writeAscApiKeyJson();
+    final ipa = a.option('ipa') ??
+        (dryRun
+            ? '<build/ios/ipa/app.ipa>'
+            : _findIpa(ws, a.option('project-dir')!));
+    if (!dryRun && ipa.isEmpty) {
+      throw UsageException('No IPA found under build/ios/ipa/.', usage);
+    }
+    final config = TestflightSubmitConfig(
+      ipaPath: ipa,
+      apiKeyPath: apiKey,
+      skipWaitingForBuildProcessing: a.flag('skip-waiting'),
+      workingDir: resolveIn(ws, a.option('project-dir')!),
+      fastlane: a.option('fastlane')!,
+    );
+    try {
+      await StepRunner(dryRun: dryRun, verbose: _verbose(a))
+          .run(planTestflightSubmit(config));
+    } finally {
+      if (!dryRun && File(apiKey).existsSync()) File(apiKey).deleteSync();
+    }
+  }
+}
+
+/// `flutter-tools app-store-submit` — upload an IPA and/or screenshots to App
+/// Store Connect via Fastlane deliver, optionally submitting for review.
+class AppStoreSubmitCommand extends Command<void> {
+  AppStoreSubmitCommand() {
+    argParser
+      ..addOption('workspace', defaultsTo: Directory.current.path)
+      ..addOption('project-dir', defaultsTo: 'mobile')
+      ..addOption('ipa', help: 'IPA path. Default: first under build/ios/ipa.')
+      ..addOption('app-version', help: 'Marketing x.y.z. Default: pubspec.')
+      ..addOption('screenshots-path',
+          help: 'Screenshots dir (screenshots mode).')
+      ..addOption('fastlane', defaultsTo: 'fastlane')
+      ..addFlag('submit-for-review', defaultsTo: false)
+      ..addFlag('skip-binary-upload', defaultsTo: false)
+      ..addFlag('skip-screenshots', defaultsTo: true)
+      ..addFlag('overwrite-screenshots', defaultsTo: false)
+      ..addFlag('verbose', defaultsTo: false)
+      ..addFlag('dry-run', defaultsTo: false);
+  }
+
+  @override
+  final String name = 'app-store-submit';
+  @override
+  final String description =
+      'Upload IPA/screenshots to App Store Connect (Fastlane deliver).';
+
+  @override
+  Future<void> run() async {
+    final a = argResults!;
+    final dryRun = a.flag('dry-run');
+    final ws = a.option('workspace')!;
+    final projectDir = a.option('project-dir')!;
+    final skipBinary = a.flag('skip-binary-upload');
+
+    final apiKey = dryRun ? '<asc-key.json>' : _writeAscApiKeyJson();
+    final version = a.option('app-version') ??
+        (dryRun ? '<x.y.z>' : _pubspecVersion(ws, projectDir));
+    if (!dryRun && version.isEmpty) {
+      throw UsageException(
+          'Could not resolve app-version (pass --app-version or set pubspec version:).',
+          usage);
+    }
+    final ipa = skipBinary
+        ? null
+        : (a.option('ipa') ??
+            (dryRun ? '<build/ios/ipa/app.ipa>' : _findIpa(ws, projectDir)));
+    if (!dryRun && !skipBinary && (ipa == null || ipa.isEmpty)) {
+      throw UsageException('No IPA found under build/ios/ipa/.', usage);
+    }
+
+    final config = AppStoreSubmitConfig(
+      apiKeyPath: apiKey,
+      appVersion: version,
+      ipaPath: ipa,
+      screenshotsPath: a.option('screenshots-path'),
+      submitForReview: a.flag('submit-for-review'),
+      skipBinaryUpload: skipBinary,
+      skipScreenshots: a.flag('skip-screenshots'),
+      overwriteScreenshots: a.flag('overwrite-screenshots'),
+      workingDir: resolveIn(ws, projectDir),
+      fastlane: a.option('fastlane')!,
+    );
+    try {
+      await StepRunner(dryRun: dryRun, verbose: _verbose(a))
+          .run(planAppStoreSubmit(config));
+    } finally {
+      if (!dryRun && File(apiKey).existsSync()) File(apiKey).deleteSync();
+    }
   }
 }
 
