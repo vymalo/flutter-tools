@@ -111,6 +111,22 @@ List<Step> planIosBuild(IosBuildConfig c) {
     sec('Create CI keychain',
         ['create-keychain', '-p', c.keychainPassword, c.keychainPath]),
     sec('Default keychain', ['default-keychain', '-s', c.keychainPath]),
+    // Add the keychain to the user SEARCH LIST (prepended, keeping the existing
+    // entries) — otherwise `xcodebuild -exportArchive` can't find the imported
+    // distribution identity ("No signing certificate found"), even though it's the
+    // default keychain. This is what Fastlane's create_keychain does internally;
+    // the raw `security` port must do it explicitly. `delete-keychain` (cleanup)
+    // removes it from the list again.
+    RunStep(
+      label: 'Add keychain to the search list',
+      executable: 'sh',
+      args: [
+        '-c',
+        'security list-keychains -d user -s "${c.keychainPath}" '
+            '\$(security list-keychains -d user | sed -e \'s/["]//g\')',
+      ],
+      workingDir: appDir,
+    ),
     sec('Unlock keychain',
         ['unlock-keychain', '-p', c.keychainPassword, c.keychainPath]),
     // Keep it unlocked long enough for the whole build (no auto-lock surprise
