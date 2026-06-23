@@ -98,22 +98,29 @@ class PatchSdkFloorStep extends Step {
   String toString() => 'PatchSdkFloorStep($label: $path -> $sdkFloor)';
 }
 
-/// Rewrite the `version:` line of a `pubspec.yaml` to `x.y.z+<buildNumber>` —
-/// keeping the marketing `x.y.z` (release-please owns it) and only (re)stamping
-/// the `+build` component (CFBundleVersion / versionCode), which the stores
-/// require to increase on every upload.
+/// Rewrite the `version:` line of a `pubspec.yaml` to `x.y.z+<buildNumber>`.
+///
+/// The `+build` component (CFBundleVersion / versionCode) is always (re)stamped —
+/// the stores require it to increase on every upload. The marketing `x.y.z` is
+/// kept from the existing file UNLESS [marketingVersion] is given, in which case
+/// it is overwritten (used when the version is owned by a git tag, not a commit).
 class PatchVersionStep extends Step {
   const PatchVersionStep({
     required super.label,
     required this.path,
     required this.buildNumber,
+    this.marketingVersion,
   });
 
   final String path;
   final String buildNumber;
 
+  /// Override for the marketing `x.y.z`; when null, keep the file's existing one.
+  final String? marketingVersion;
+
   @override
-  String toString() => 'PatchVersionStep($label: $path -> +$buildNumber)';
+  String toString() => 'PatchVersionStep($label: $path -> '
+      '${marketingVersion ?? '<keep>'}+$buildNumber)';
 }
 
 /// Thrown when a [RunStep] exits non-zero — fail-fast, like `set -e`.
