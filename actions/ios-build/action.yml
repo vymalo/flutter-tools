@@ -1,0 +1,68 @@
+name: 'iOS build (Vymalo)'
+description: >-
+  Build a signed App Store IPA: decode the distribution cert + provisioning
+  profile, set up a throwaway CI keychain, force manual signing, then
+  `flutter build ipa --no-codesign` + `xcodebuild -exportArchive` (the
+  flutter/flutter#176636 workaround). No Fastlane lane — the orchestration is the
+  Dart CLI; signing material is passed via env (never command flags). Requires a
+  macOS runner with Xcode; ios-setup (or your own) must have run first.
+
+inputs:
+  workspace:
+    default: ${{ github.workspace }}
+  project-dir:
+    default: 'mobile'
+  app-id:
+    description: 'Bundle identifier.'
+    default: 'com.vymalo.vymalo'
+  team-id:
+    description: '10-char Apple Developer team id.'
+    default: ''
+  profile-name:
+    description: 'Display name of the App Store provisioning profile.'
+    default: 'Vymalo App Store'
+  certificate-base64:
+    description: 'base64 of the distribution .p12.'
+    default: ''
+  certificate-password:
+    default: ''
+  provision-profile-base64:
+    description: 'base64 of the App Store .mobileprovision.'
+    default: ''
+  dart-defines:
+    description: 'One KEY=VALUE per line → --dart-define for each.'
+    default: ''
+
+outputs:
+  ipa-path:
+    description: 'Absolute path to the exported .ipa.'
+    value: ${{ steps.build.outputs.ipa-path }}
+
+runs:
+  using: composite
+  steps:
+    - id: build
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      env:
+        APPLE_TEAM_ID: ${{ inputs.team-id }}
+        IOS_APPSTORE_PROFILE_NAME: ${{ inputs.profile-name }}
+        IOS_CERTIFICATE_BASE64: ${{ inputs.certificate-base64 }}
+        IOS_CERTIFICATE_PASSWORD: ${{ inputs.certificate-password }}
+        IOS_APPSTORE_PROVISION_PROFILE_BASE64: ${{ inputs.provision-profile-base64 }}
+      run: |
+        set -euo pipefail
+        dart pub get
+
+        args=(
+          ios-build
+          --workspace "${{ inputs.workspace }}"
+          --project-dir "${{ inputs.project-dir }}"
+          --app-id "${{ inputs.app-id }}"
+        )
+        # One --dart-define per non-empty line of the dart-defines input.
+        while IFS= read -r line; do
+          [ -n "$line" ] && args+=(--dart-define "$line")
+        done <<< "${{ inputs.dart-defines }}"
+
+        dart run bin/flutter_tools.dart "${args[@]}"
