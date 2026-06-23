@@ -74,12 +74,13 @@ void main() {
     });
 
     test('marketingVersion override rewrites x.y.z + stamps build', () async {
-      final out = await stamp('name: v\nversion: 1.2.3+9\n', '88',
-          marketing: '2.0.0');
+      final out =
+          await stamp('name: v\nversion: 1.2.3+9\n', '88', marketing: '2.0.0');
       expect(out, contains('version: 2.0.0+88'));
     });
 
-    test('marketingVersion override works even when the file version is '
+    test(
+        'marketingVersion override works even when the file version is '
         'non-semver, as long as a version: line exists', () async {
       final out = await stamp('version: 0.0.0-dev\n', '3', marketing: '1.5.0');
       expect(out, contains('version: 1.5.0+3'));
