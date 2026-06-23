@@ -20,11 +20,17 @@ class RunStep extends Step {
     required this.executable,
     required this.args,
     required this.workingDir,
+    this.allowFailure = false,
   });
 
   final String executable;
   final List<String> args;
   final String workingDir;
+
+  /// When true, a non-zero exit logs a warning instead of throwing
+  /// [StepFailure] — for best-effort steps like importing Apple WWDR
+  /// intermediates (some versions 404 or are already present).
+  final bool allowFailure;
 
   @override
   String toString() =>

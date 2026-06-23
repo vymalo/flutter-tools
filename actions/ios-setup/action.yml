@@ -1,0 +1,87 @@
+name: 'iOS setup (Vymalo)'
+description: >-
+  Get a macOS runner iOS-build-ready: Flutter + Java + the layered codegen +
+  Bundler (fastlane/cocoapods) + pod install. The iOS counterpart of
+  android-setup. Uses the system/Homebrew Ruby (NOT ruby/setup-ruby, which
+  assumes a hosted-runner toolcache a self-hosted Mac Mini doesn't have).
+
+inputs:
+  workspace:
+    default: ${{ github.workspace }}
+  project-dir:
+    default: 'mobile'
+  api-pubspec-template:
+    description: 'Tracked pubspec template copied to <project-dir>/api/pubspec.yaml.'
+    default: 'mobile/tool/api-pubspec.template.yaml'
+  clean:
+    description: 'Drop pubspec.lock + build_runner clean before the API build.'
+    default: 'true'
+  run-codegen:
+    default: 'true'
+  setup-flutter:
+    default: 'true'
+  setup-java:
+    default: 'true'
+  pod-install:
+    default: 'true'
+  flutter-version:
+    default: '3.44.2'
+  flutter-channel:
+    default: 'stable'
+  java-version:
+    default: '21'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Flutter
+      if: ${{ inputs.setup-flutter == 'true' }}
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ inputs.flutter-version }}
+        channel: ${{ inputs.flutter-channel }}
+        cache: true
+
+    - name: Set up Java
+      if: ${{ inputs.setup-java == 'true' }}
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-version }}
+
+    - name: Layered codegen
+      if: ${{ inputs.run-codegen == 'true' }}
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: >-
+        dart pub get && dart run bin/flutter_tools.dart codegen
+        --workspace "${{ inputs.workspace }}"
+        --project-dir "${{ inputs.project-dir }}"
+        --api-pubspec-template "${{ inputs.api-pubspec-template }}"
+        --${{ inputs.clean == 'true' && 'clean' || 'no-clean' }}
+
+    - name: Cache Bundler
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.project-dir }}/vendor/bundle
+        key: bundler-${{ hashFiles(format('{0}/Gemfile', inputs.project-dir)) }}
+        restore-keys: bundler-
+
+    - name: Bundle install (fastlane + cocoapods)
+      shell: bash
+      working-directory: ${{ inputs.project-dir }}
+      run: bundle config set path 'vendor/bundle' && bundle install --jobs 4
+
+    - name: Cache Pods
+      if: ${{ inputs.pod-install == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.project-dir }}/ios/Pods
+        key: pods-${{ hashFiles(format('{0}/ios/Podfile', inputs.project-dir)) }}
+        restore-keys: pods-
+
+    - name: Pod install
+      if: ${{ inputs.pod-install == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.project-dir }}/ios
+      run: bundle exec pod install

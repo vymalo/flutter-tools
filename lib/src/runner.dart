@@ -91,7 +91,13 @@ class StepRunner {
         runInShell: Platform.isWindows,
       );
       final code = await proc.exitCode;
-      if (code != 0) throw StepFailure(step, code);
+      if (code != 0) {
+        if (step.allowFailure) {
+          _log('  ⚠ $cmd  (exit $code, ignored)');
+          return;
+        }
+        throw StepFailure(step, code);
+      }
       return;
     }
 
@@ -112,6 +118,10 @@ class StepRunner {
     await pumping;
 
     if (code != 0) {
+      if (step.allowFailure) {
+        _log('  ⚠ $cmd  (exit $code, ignored)');
+        return;
+      }
       _log('  ✗ $cmd  (exit $code)');
       stdout.add(out);
       stderr.add(err);

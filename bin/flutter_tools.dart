@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
@@ -14,6 +15,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(CodegenCommand())
     ..addCommand(VersionStampCommand())
     ..addCommand(AndroidBuildCommand())
+    ..addCommand(IosBuildCommand())
     ..addCommand(PlaySubmitCommand())
     ..addCommand(S3UploadCommand());
 
@@ -78,6 +80,106 @@ class VersionStampCommand extends Command<void> {
       'build-number': c.buildNumber,
       'full-version': '$version+${c.buildNumber}',
     });
+  }
+}
+
+/// `flutter-tools ios-build` — signed App Store IPA. Signing material comes from
+/// the environment (never flags): IOS_CERTIFICATE_BASE64 / _PASSWORD,
+/// IOS_APPSTORE_PROVISION_PROFILE_BASE64, APPLE_TEAM_ID, IOS_APPSTORE_PROFILE_NAME.
+class IosBuildCommand extends Command<void> {
+  IosBuildCommand() {
+    argParser
+      ..addOption('workspace', defaultsTo: Directory.current.path)
+      ..addOption('project-dir', defaultsTo: 'mobile')
+      ..addOption('app-id',
+          defaultsTo: 'com.vymalo.vymalo', help: 'Bundle identifier.')
+      ..addMultiOption('dart-define',
+          help: 'KEY=VALUE, repeatable → --dart-define=KEY=VALUE.')
+      ..addOption('flutter', defaultsTo: 'flutter')
+      ..addOption('fastlane', defaultsTo: 'fastlane')
+      ..addFlag('verbose', defaultsTo: false)
+      ..addFlag('dry-run', defaultsTo: false);
+  }
+
+  @override
+  final String name = 'ios-build';
+  @override
+  final String description =
+      'Build a signed App Store IPA (cert/profile/keychain from the environment).';
+
+  @override
+  Future<void> run() async {
+    final a = argResults!;
+    final env = Platform.environment;
+    final dryRun = a.flag('dry-run');
+
+    final tmp = Directory.systemTemp.path;
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final certPath = '$tmp/vymalo-$stamp.p12';
+    final profilePath = '$tmp/vymalo-$stamp.mobileprovision';
+    final keychainPath = '$tmp/vymalo-ci-$stamp.keychain-db';
+
+    if (!dryRun) {
+      File(certPath).writeAsBytesSync(base64.decode(
+          (env['IOS_CERTIFICATE_BASE64'] ?? '').replaceAll(RegExp(r'\s'), '')));
+      File(profilePath).writeAsBytesSync(base64.decode(
+          (env['IOS_APPSTORE_PROVISION_PROFILE_BASE64'] ?? '')
+              .replaceAll(RegExp(r'\s'), '')));
+    }
+
+    final rand = Random.secure();
+    final keychainPassword =
+        List.generate(24, (_) => rand.nextInt(16).toRadixString(16)).join();
+
+    final config = IosBuildConfig(
+      workspace: a.option('workspace')!,
+      projectDir: a.option('project-dir')!,
+      appId: a.option('app-id')!,
+      teamId: (env['APPLE_TEAM_ID'] ?? '').trim(),
+      profileName:
+          (env['IOS_APPSTORE_PROFILE_NAME'] ?? 'Vymalo App Store').trim(),
+      certPath: certPath,
+      certPassword: (env['IOS_CERTIFICATE_PASSWORD'] ?? '').trim(),
+      profilePath: profilePath,
+      keychainPath: keychainPath,
+      keychainPassword: keychainPassword,
+      dartDefines: a.multiOption('dart-define'),
+      flutter: a.option('flutter')!,
+      fastlane: a.option('fastlane')!,
+    );
+
+    try {
+      await StepRunner(dryRun: dryRun, verbose: _verbose(a))
+          .run(planIosBuild(config));
+    } finally {
+      if (!dryRun) {
+        await Process.run('security', ['delete-keychain', keychainPath]);
+        for (final p in [
+          certPath,
+          profilePath,
+          '$keychainPath.ExportOptions.plist',
+        ]) {
+          final f = File(p);
+          if (f.existsSync()) f.deleteSync();
+        }
+      }
+    }
+
+    _emitIosBuildOutputs(config);
+  }
+
+  void _emitIosBuildOutputs(IosBuildConfig c) {
+    final ipaDir = Directory(
+        resolveIn(resolveIn(c.workspace, c.projectDir), 'build/ios/ipa'));
+    var ipa = '';
+    if (ipaDir.existsSync()) {
+      final hits = ipaDir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.ipa'));
+      if (hits.isNotEmpty) ipa = hits.first.path;
+    }
+    _emitOutput({'ipa-path': ipa});
   }
 }
 
