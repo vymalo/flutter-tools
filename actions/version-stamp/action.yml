@@ -1,0 +1,41 @@
+name: 'Version stamp (Vymalo)'
+description: >-
+  Stamp a build number into the Flutter app's pubspec.yaml
+  (version: x.y.z+<build>) so every store upload gets a unique, increasing
+  CFBundleVersion / versionCode. The marketing version (x.y.z) is left untouched
+  (e.g. release-please owns it). Never commits — stamps at build time.
+
+inputs:
+  workspace:
+    description: 'Repo root the project-dir resolves against.'
+    default: ${{ github.workspace }}
+  project-dir:
+    description: 'Flutter app directory (holds pubspec.yaml).'
+    default: 'mobile'
+  build-number:
+    description: 'The +build value to stamp. Defaults to the CI run number.'
+    default: ${{ github.run_number }}
+
+outputs:
+  version:
+    description: 'Marketing version x.y.z (unchanged).'
+    value: ${{ steps.stamp.outputs.version }}
+  build-number:
+    description: 'The stamped +build value.'
+    value: ${{ steps.stamp.outputs.build-number }}
+  full-version:
+    description: 'x.y.z+<build>.'
+    value: ${{ steps.stamp.outputs.full-version }}
+
+runs:
+  using: composite
+  steps:
+    - id: stamp
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: |
+        dart pub get
+        dart run bin/flutter_tools.dart version-stamp \
+          --workspace "${{ inputs.workspace }}" \
+          --project-dir "${{ inputs.project-dir }}" \
+          --build-number "${{ inputs.build-number }}"

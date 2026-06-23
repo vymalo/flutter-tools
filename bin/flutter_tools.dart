@@ -12,6 +12,7 @@ Future<void> main(List<String> args) async {
     'Reusable Flutter CI/CD steps for Vymalo projects.',
   )
     ..addCommand(CodegenCommand())
+    ..addCommand(VersionStampCommand())
     ..addCommand(AndroidBuildCommand())
     ..addCommand(PlaySubmitCommand())
     ..addCommand(S3UploadCommand());
@@ -30,6 +31,55 @@ Future<void> main(List<String> args) async {
 /// `--verbose` forces live output; otherwise quiet unless GitHub step-debug is
 /// on (the StepRunner reads RUNNER_DEBUG when this is null).
 bool? _verbose(ArgResults a) => a.flag('verbose') ? true : null;
+
+/// `flutter-tools version-stamp` — rewrite pubspec `version:` to `x.y.z+<build>`
+/// (marketing version left intact), then emit the resolved version as outputs.
+class VersionStampCommand extends Command<void> {
+  VersionStampCommand() {
+    argParser
+      ..addOption('workspace', defaultsTo: Directory.current.path)
+      ..addOption('project-dir', defaultsTo: 'mobile')
+      ..addOption('build-number',
+          mandatory: true, help: 'The +build value (e.g. the CI run number).')
+      ..addFlag('verbose', defaultsTo: false)
+      ..addFlag('dry-run', defaultsTo: false);
+  }
+
+  @override
+  final String name = 'version-stamp';
+  @override
+  final String description =
+      'Stamp a build number into pubspec.yaml (version: x.y.z+<build>).';
+
+  @override
+  Future<void> run() async {
+    final a = argResults!;
+    final config = VersionStampConfig(
+      workspace: a.option('workspace')!,
+      projectDir: a.option('project-dir')!,
+      buildNumber: a.option('build-number')!,
+    );
+    await StepRunner(dryRun: a.flag('dry-run'), verbose: _verbose(a))
+        .run(planVersionStamp(config));
+    _emitVersionOutputs(config);
+  }
+
+  void _emitVersionOutputs(VersionStampConfig c) {
+    final pubspec =
+        File(resolveIn(resolveIn(c.workspace, c.projectDir), 'pubspec.yaml'));
+    final marketing = pubspec.existsSync()
+        ? RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
+            .firstMatch(pubspec.readAsStringSync())
+            ?.group(1)
+        : null;
+    final version = marketing ?? '0.0.0';
+    _emitOutput({
+      'version': version,
+      'build-number': c.buildNumber,
+      'full-version': '$version+${c.buildNumber}',
+    });
+  }
+}
 
 /// `flutter-tools codegen` — the layered OpenAPI + build_runner codegen.
 class CodegenCommand extends Command<void> {
