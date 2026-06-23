@@ -87,11 +87,21 @@ runs:
           echo "fastlane already on PATH: $(command -v fastlane)"
           exit 0
         fi
+        # ios-build / *-submit shell out to a bare `fastlane`, but a self-hosted Mac
+        # runner only has it via Bundler. Drop a wrapper on PATH that runs the
+        # BUNDLED fastlane (BUNDLE_GEMFILE pinned so it resolves from any cwd).
+        # (A plain script, not `bundle binstubs --path`, whose flag is removed in
+        # current Bundler.) Falls back to a global gem if fastlane isn't bundled.
+        mkdir -p "$RUNNER_TEMP/flbin"
         if bundle show fastlane >/dev/null 2>&1; then
-          bundle binstubs fastlane --force --path "$RUNNER_TEMP/flbin"
+          {
+            echo '#!/usr/bin/env bash'
+            echo "export BUNDLE_GEMFILE=\"$(pwd)/Gemfile\""
+            echo 'exec bundle exec fastlane "$@"'
+          } > "$RUNNER_TEMP/flbin/fastlane"
+          chmod +x "$RUNNER_TEMP/flbin/fastlane"
           echo "$RUNNER_TEMP/flbin" >> "$GITHUB_PATH"
-          echo "BUNDLE_GEMFILE=$(pwd)/Gemfile" >> "$GITHUB_ENV"
-          echo "Exposed bundled fastlane via binstub at $RUNNER_TEMP/flbin"
+          echo "Wrapped bundled fastlane at $RUNNER_TEMP/flbin/fastlane"
         else
           gem install fastlane --no-document
           echo "$(ruby -e 'puts Gem.bindir')" >> "$GITHUB_PATH"
