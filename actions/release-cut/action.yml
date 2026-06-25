@@ -5,7 +5,8 @@ description: >-
   bump), then tags it + creates a GitHub Release with auto-generated notes. Needs
   only `contents: write`. The semver/bump logic is a unit-tested Dart command; the
   tag + release is `softprops/action-gh-release`. Requires the repo checked out
-  with full history + tags (actions/checkout with `fetch-depth: 0`).
+  with full history + tags (actions/checkout with `fetch-depth: 0`) and Dart on
+  PATH (a Flutter/Dart setup step first, e.g. this repo's android/ios-setup).
 
 inputs:
   workspace:
@@ -44,14 +45,30 @@ runs:
     - id: compute
       shell: bash
       working-directory: ${{ github.action_path }}/../..
+      # Route inputs through env (never interpolated into the script), so a value
+      # from workflow_dispatch / repo vars can't break out and run shell. Needs
+      # Dart on PATH (a Flutter/Dart setup step, or this repo's android/ios-setup).
+      env:
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_TAG_PREFIX: ${{ inputs.tag-prefix }}
+        INPUT_BUMP: ${{ inputs.bump }}
+        INPUT_REF: ${{ inputs.target }}
       run: |
         set -euo pipefail
+        # Preflight: the version/bump need full history + tags. A shallow clone
+        # would silently mis-baseline (no tags → wrong version). Fail loud instead.
+        if [ "$(git -C "$INPUT_WORKSPACE" rev-parse --is-shallow-repository)" = "true" ]; then
+          echo "::error::release-cut needs full history + tags — checkout with fetch-depth: 0." >&2
+          exit 1
+        fi
         dart pub get
         dart run bin/flutter_tools.dart release-cut \
-          --workspace "${{ inputs.workspace }}" \
-          --project-dir "${{ inputs.project-dir }}" \
-          --tag-prefix "${{ inputs.tag-prefix }}" \
-          --bump "${{ inputs.bump }}"
+          --workspace "$INPUT_WORKSPACE" \
+          --project-dir "$INPUT_PROJECT_DIR" \
+          --tag-prefix "$INPUT_TAG_PREFIX" \
+          --bump "$INPUT_BUMP" \
+          --ref "$INPUT_REF"
 
     # Tag + GitHub Release with auto-notes — creates the tag from `target`, so it
     # needs only contents: write (no PR, no PAT). A GITHUB_TOKEN-created tag does

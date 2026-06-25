@@ -858,6 +858,12 @@ class ReleaseCutCommand extends Command<void> {
         defaultsTo: 'auto',
         allowed: ['auto', 'patch', 'minor', 'major'],
         help: 'auto = infer from conventional commits.',
+      )
+      ..addOption(
+        'ref',
+        defaultsTo: 'HEAD',
+        help:
+            'Commitish being released — the bump scan ends here (default HEAD).',
       );
   }
 
@@ -874,6 +880,7 @@ class ReleaseCutCommand extends Command<void> {
     final ws = a.option('workspace')!;
     final projectDir = a.option('project-dir')!;
     final prefix = a.option('tag-prefix')!;
+    final ref = a.option('ref')!;
 
     String git(List<String> args) {
       final r = Process.runSync('git', args, workingDirectory: ws);
@@ -885,12 +892,14 @@ class ReleaseCutCommand extends Command<void> {
         .map((l) => l.trim())
         .firstWhere((l) => l.isNotEmpty, orElse: () => '');
 
+    // Scan up to the commit being released (`ref`), NOT always HEAD — so a release
+    // that tags a supplied SHA infers its bump from the commits actually in it.
     final logArgs = <String>['log', '--format=%s%n%b'];
-    if (latestTag.isNotEmpty) logArgs.add('$latestTag..HEAD');
+    logArgs.add(latestTag.isNotEmpty ? '$latestTag..$ref' : ref);
     if (projectDir != '.') logArgs.addAll(['--', '$projectDir/']);
     final commitLog = git(logArgs);
 
-    final pubspec = File('$ws/$projectDir/pubspec.yaml');
+    final pubspec = File(resolveIn(resolveIn(ws, projectDir), 'pubspec.yaml'));
     final pubspecVersion = pubspec.existsSync()
         ? (RegExp(
                 r'^version:\s*(\S+)',
