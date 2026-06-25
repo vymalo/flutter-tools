@@ -48,11 +48,16 @@ const List<AndroidScreenshotDevice> defaultAndroidDevices = [
   ),
 ];
 
-/// The default App Store matrix: 6.9", 6.5" iPhones + a 12.9" iPad.
+/// The default App Store matrix — simulators chosen so their pixel sizes land in
+/// valid App Store Connect display slots (deliver routes by resolution):
+///   iPhone 16 Pro Max → 1320×2868 (6.9"),  iPhone 15 Plus → 1290×2796 (6.7"),
+///   iPad Pro 13-inch (M4) → 2064×2752 (13"). NB: plain "iPhone 16 Pro" is 6.3"
+///   (1206×2622) — NOT an ASC slot. Override via `ios-devices` for other slots
+///   (see the action README's sim→resolution→slot table).
 const List<IosScreenshotDevice> defaultIosDevices = [
-  IosScreenshotDevice(sim: 'iPhone 16 Pro', label: 'iPhone69'),
-  IosScreenshotDevice(sim: 'iPhone 15 Plus', label: 'iPhone65'),
-  IosScreenshotDevice(sim: 'iPad Pro 13-inch (M4)', label: 'iPadPro129'),
+  IosScreenshotDevice(sim: 'iPhone 16 Pro Max', label: 'iPhone69'),
+  IosScreenshotDevice(sim: 'iPhone 15 Plus', label: 'iPhone67'),
+  IosScreenshotDevice(sim: 'iPad Pro 13-inch (M4)', label: 'iPadPro13'),
 ];
 
 /// `fastlane supply` Play images dir for a device class.
