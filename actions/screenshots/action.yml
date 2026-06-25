@@ -1,0 +1,80 @@
+name: 'Screenshots (Vymalo)'
+description: >-
+  Capture store screenshots across a device matrix — Android phone + tablets (via
+  AVDs, auto-created if missing) and iOS (via freshly-created simulators) — by
+  running your integration_test driver on each device. Hardened: clean COLD BOOT
+  (no stale-snapshot crash), one drive RETRY (transient VM-service flake), a
+  per-device RESCUE (one bad device doesn't lose the rest), and FAIL-LOUD on zero
+  captured. Requires a macOS runner with Xcode + the Android SDK, and a Flutter app
+  whose integration test writes PNGs to `<project-dir>/screenshots/`.
+
+inputs:
+  workspace:
+    default: ${{ github.workspace }}
+  project-dir:
+    default: 'mobile'
+  platform:
+    description: 'android | ios | both.'
+    default: 'both'
+  driver:
+    default: 'test_driver/integration_test.dart'
+  target:
+    default: 'integration_test/screenshots_test.dart'
+  locale:
+    default: 'en-US'
+  android-home:
+    description: 'Android SDK root (else $ANDROID_HOME / Homebrew default).'
+    default: ''
+  sysimg:
+    description: 'System image for auto-created AVDs.'
+    default: 'system-images;android-36;google_apis;arm64-v8a'
+  android-devices:
+    description: 'Override the Android matrix: "avd:profile:class,…" (empty = default phone+7"+10").'
+    default: ''
+  ios-devices:
+    description: 'Override the iOS matrix: "sim|label,…" (empty = default 6.9"/6.5"/iPad).'
+    default: ''
+  dart-defines:
+    description: 'One KEY=VALUE per line → --dart-define for each (e.g. the publishable key).'
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      # Route inputs through env (never interpolated into the script) so a
+      # user-controlled value can't break out and run shell — the #11 pattern.
+      env:
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_PLATFORM: ${{ inputs.platform }}
+        INPUT_DRIVER: ${{ inputs.driver }}
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_LOCALE: ${{ inputs.locale }}
+        INPUT_SYSIMG: ${{ inputs.sysimg }}
+        INPUT_ANDROID_HOME: ${{ inputs.android-home }}
+        INPUT_ANDROID_DEVICES: ${{ inputs.android-devices }}
+        INPUT_IOS_DEVICES: ${{ inputs.ios-devices }}
+        INPUT_DART_DEFINES: ${{ inputs.dart-defines }}
+      run: |
+        set -euo pipefail
+        dart pub get
+        args=(
+          screenshots
+          --workspace "$INPUT_WORKSPACE"
+          --project-dir "$INPUT_PROJECT_DIR"
+          --platform "$INPUT_PLATFORM"
+          --driver "$INPUT_DRIVER"
+          --target "$INPUT_TARGET"
+          --locale "$INPUT_LOCALE"
+          --sysimg "$INPUT_SYSIMG"
+        )
+        [ -n "$INPUT_ANDROID_HOME" ]    && args+=(--android-home "$INPUT_ANDROID_HOME")
+        [ -n "$INPUT_ANDROID_DEVICES" ] && args+=(--android-devices "$INPUT_ANDROID_DEVICES")
+        [ -n "$INPUT_IOS_DEVICES" ]     && args+=(--ios-devices "$INPUT_IOS_DEVICES")
+        # One --dart-define per non-empty line.
+        while IFS= read -r line; do
+          [ -n "$line" ] && args+=(--dart-define "$line")
+        done <<< "$INPUT_DART_DEFINES"
+        dart run bin/flutter_tools.dart "${args[@]}"

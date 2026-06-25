@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -39,7 +40,8 @@ Future<void> main(List<String> args) async {
         ..addCommand(AppStoreSubmitCommand())
         ..addCommand(PlaySubmitCommand())
         ..addCommand(S3UploadCommand())
-        ..addCommand(ReleaseCutCommand());
+        ..addCommand(ReleaseCutCommand())
+        ..addCommand(ScreenshotsCommand());
 
   try {
     await runner.run(args);
@@ -926,4 +928,391 @@ class ReleaseCutCommand extends Command<void> {
       'bump': result.bump.name,
     });
   }
+}
+
+/// `flutter-tools screenshots` — capture store screenshots across a device matrix.
+///
+/// Imperative orchestration (boot emulators/simulators → `flutter drive` →
+/// collect → per-device rescue) — a faithful port of the proven Fastlane lanes,
+/// preserving the hard-won gotchas: clean COLD BOOT (`-no-snapshot-load
+/// -wipe-data`) so a stale phone-AVD snapshot can't crash the app mid-drive; one
+/// drive RETRY for the transient "Service has disappeared" VM-service flake; a
+/// per-device try/rescue so one bad device doesn't lose the rest; and FAIL-LOUD
+/// on zero collected (a green run with no screenshots is the classic trap).
+class ScreenshotsCommand extends Command<void> {
+  ScreenshotsCommand() {
+    argParser
+      ..addOption('workspace', defaultsTo: Directory.current.path)
+      ..addOption('project-dir', defaultsTo: 'mobile')
+      ..addOption(
+        'platform',
+        defaultsTo: 'both',
+        allowed: ['android', 'ios', 'both'],
+      )
+      ..addOption('driver', defaultsTo: 'test_driver/integration_test.dart')
+      ..addOption(
+        'target',
+        defaultsTo: 'integration_test/screenshots_test.dart',
+      )
+      ..addOption('locale', defaultsTo: 'en-US')
+      ..addOption('android-home', defaultsTo: '')
+      ..addOption(
+        'sysimg',
+        defaultsTo: 'system-images;android-36;google_apis;arm64-v8a',
+      )
+      ..addOption(
+        'android-devices',
+        defaultsTo: '',
+        help: 'Override: "avd:profile:class,…".',
+      )
+      ..addOption(
+        'ios-devices',
+        defaultsTo: '',
+        help: 'Override: "sim|label,…".',
+      )
+      ..addMultiOption('dart-define', help: 'KEY=VALUE, repeatable.')
+      ..addOption('flutter', defaultsTo: 'flutter');
+  }
+
+  @override
+  final String name = 'screenshots';
+  @override
+  final String description =
+      'Capture store screenshots across an emulator/simulator device matrix.';
+
+  @override
+  Future<void> run() async {
+    final a = argResults!;
+    final appRoot = resolveIn(a.option('workspace')!, a.option('project-dir')!);
+    final platform = a.option('platform')!;
+    final locale = a.option('locale')!;
+    final driver = a.option('driver')!;
+    final target = a.option('target')!;
+    final flutter = a.option('flutter')!;
+    final defines = [
+      for (final d in a.multiOption('dart-define')) '--dart-define=$d',
+    ];
+
+    if (platform == 'android' || platform == 'both') {
+      await _captureAndroid(
+        appRoot: appRoot,
+        devices: parseAndroidDevices(a.option('android-devices')!),
+        androidHome: a.option('android-home')!.isNotEmpty
+            ? a.option('android-home')!
+            : (Platform.environment['ANDROID_HOME'] ??
+                  '/opt/homebrew/share/android-commandlinetools'),
+        sysimg: a.option('sysimg')!,
+        driver: driver,
+        target: target,
+        flutter: flutter,
+        defines: defines,
+        locale: locale,
+      );
+    }
+    if (platform == 'ios' || platform == 'both') {
+      await _captureIos(
+        appRoot: appRoot,
+        devices: parseIosDevices(a.option('ios-devices')!),
+        driver: driver,
+        target: target,
+        flutter: flutter,
+        defines: defines,
+        locale: locale,
+      );
+    }
+  }
+}
+
+/// Run a process live (inherited stdio), optionally with a hard timeout (kill on
+/// expiry → exit 124). Returns the exit code.
+Future<int> _runLive(
+  String exe,
+  List<String> args, {
+  String? cwd,
+  Duration? timeout,
+}) async {
+  final p = await Process.start(
+    exe,
+    args,
+    workingDirectory: cwd,
+    mode: ProcessStartMode.inheritStdio,
+  );
+  if (timeout == null) return p.exitCode;
+  try {
+    return await p.exitCode.timeout(timeout);
+  } on TimeoutException {
+    p.kill(ProcessSignal.sigkill);
+    return 124;
+  }
+}
+
+/// `flutter drive` with ONE retry — the integration_test VM service occasionally
+/// drops mid-run ("ext.flutter.driver: (112) Service has disappeared").
+Future<void> _driveScreenshots(
+  String flutter,
+  String driver,
+  String target,
+  String device,
+  List<String> defines,
+) async {
+  for (var attempt = 1; ; attempt++) {
+    final rc = await _runLive(flutter, [
+      'drive',
+      '--driver=$driver',
+      '--target=$target',
+      '-d',
+      device,
+      ...defines,
+    ]);
+    if (rc == 0) return;
+    if (attempt >= 2) throw StateError('flutter drive failed (exit $rc)');
+    stdout.writeln('⚠ flutter drive failed (exit $rc); retrying once…');
+  }
+}
+
+/// Move every PNG the driver wrote to `<appRoot>/screenshots/` into [targetDir],
+/// renaming via [name], then clear the staging dir. Returns the count moved.
+int _collectScreenshots(
+  String appRoot,
+  String targetDir, {
+  String Function(String basename)? name,
+}) {
+  final staging = Directory('$appRoot/screenshots');
+  if (!staging.existsSync()) return 0;
+  Directory(targetDir).createSync(recursive: true);
+  var n = 0;
+  for (final f in staging.listSync().whereType<File>()) {
+    if (!f.path.endsWith('.png')) continue;
+    final base = f.uri.pathSegments.last;
+    f.copySync('$targetDir/${name == null ? base : name(base)}');
+    n++;
+  }
+  staging.deleteSync(recursive: true);
+  return n;
+}
+
+int _countPngs(String dir) {
+  final d = Directory(dir);
+  if (!d.existsSync()) return 0;
+  return d
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.png'))
+      .length;
+}
+
+Future<void> _captureAndroid({
+  required String appRoot,
+  required List<AndroidScreenshotDevice> devices,
+  required String androidHome,
+  required String sysimg,
+  required String driver,
+  required String target,
+  required String flutter,
+  required List<String> defines,
+  required String locale,
+}) async {
+  // Clear the previous run's collected images + staging so the fail-loud guard
+  // can't pass on stale files.
+  for (final d in devices) {
+    final dir = Directory(
+      androidImagesDir(appRoot, d.imagesClass, locale: locale),
+    );
+    if (dir.existsSync()) dir.deleteSync(recursive: true);
+  }
+  final staging = Directory('$appRoot/screenshots');
+  if (staging.existsSync()) staging.deleteSync(recursive: true);
+
+  final emulator = '$androidHome/emulator/emulator';
+  final adb = '$androidHome/platform-tools/adb';
+  final avdmanager = '$androidHome/cmdline-tools/latest/bin/avdmanager';
+
+  final existing = Process.runSync(emulator, [
+    '-list-avds',
+  ]).stdout.toString().split('\n').map((s) => s.trim()).toSet();
+
+  for (final d in devices) {
+    if (!existing.contains(d.avd)) {
+      stdout.writeln("AVD '${d.avd}' not found — creating it (${d.profile})…");
+      // Invoke avdmanager directly (no `sh -c` interpolation of the device
+      // matrix → no shell-injection surface); answer its prompt via stdin.
+      final create = await Process.start(avdmanager, [
+        'create',
+        'avd',
+        '-n',
+        d.avd,
+        '-k',
+        sysimg,
+        '-d',
+        d.profile,
+        '--force',
+      ]);
+      create.stdin.writeln('no');
+      await create.stdin.close();
+      await Future.wait([
+        create.stdout.drain<void>(),
+        create.stderr.drain<void>(),
+      ]);
+      if (await create.exitCode != 0) {
+        stdout.writeln(
+          "Skipping ${d.imagesClass}: could not create AVD '${d.avd}'.",
+        );
+        continue;
+      }
+    }
+
+    stdout.writeln('Starting AVD ${d.avd} → ${d.imagesClass}…');
+    // One emulator at a time (killed below) → console serial is always
+    // emulator-5554. Clean cold boot: -no-snapshot-load -wipe-data (avoids the
+    // stale-snapshot phone crash); -no-snapshot-save so it never goes stale.
+    final emu = await Process.start(emulator, [
+      '-avd',
+      d.avd,
+      '-no-window',
+      '-no-audio',
+      '-no-snapshot-load',
+      '-no-snapshot-save',
+      '-wipe-data',
+      '-no-metrics',
+    ], mode: ProcessStartMode.detached);
+    emu.exitCode.ignore();
+    try {
+      // Target the serial explicitly (one emulator at a time → emulator-5554),
+      // so a stray device on the host can't confuse wait-for-device / getprop.
+      final wfd = await _runLive(adb, [
+        '-s',
+        'emulator-5554',
+        'wait-for-device',
+      ], timeout: const Duration(seconds: 180));
+      if (wfd != 0) throw StateError('adb wait-for-device timed out');
+      final deadline = DateTime.now().add(const Duration(seconds: 240));
+      while (true) {
+        final booted = Process.runSync(adb, [
+          '-s',
+          'emulator-5554',
+          'shell',
+          'getprop',
+          'sys.boot_completed',
+        ]).stdout.toString().trim();
+        if (booted == '1') break;
+        if (DateTime.now().isAfter(deadline)) {
+          throw StateError('emulator never reported boot_completed');
+        }
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+      await _driveScreenshots(
+        flutter,
+        driver,
+        target,
+        'emulator-5554',
+        defines,
+      );
+      final n = _collectScreenshots(
+        appRoot,
+        androidImagesDir(appRoot, d.imagesClass, locale: locale),
+      );
+      stdout.writeln('  ✓ collected $n into ${d.imagesClass}');
+    } catch (e) {
+      // One bad device must not abort the rest — the final guard fails the run
+      // if NOTHING was collected.
+      stdout.writeln('Skipping ${d.imagesClass}: $e');
+    } finally {
+      try {
+        await _runLive(adb, ['-s', 'emulator-5554', 'emu', 'kill']);
+      } catch (_) {}
+      // Release the port before the next boot.
+      await Future<void>.delayed(const Duration(seconds: 4));
+    }
+  }
+
+  final shots = _countPngs('$appRoot/fastlane/metadata/android');
+  if (shots == 0) {
+    throw StepFailure(
+      const RunStep(
+        label: 'android screenshots',
+        executable: '',
+        args: [],
+        workingDir: '',
+      ),
+      65,
+    );
+  }
+  stdout.writeln('Collected $shots Android screenshot(s).');
+}
+
+Future<void> _captureIos({
+  required String appRoot,
+  required List<IosScreenshotDevice> devices,
+  required String driver,
+  required String target,
+  required String flutter,
+  required List<String> defines,
+  required String locale,
+}) async {
+  // Clear last run's collected images + delete leftover "vymalo-*" sims.
+  final dir = Directory(iosScreenshotsDir(appRoot, locale: locale));
+  if (dir.existsSync()) dir.deleteSync(recursive: true);
+  final list = Process.runSync('xcrun', [
+    'simctl',
+    'list',
+    'devices',
+  ]).stdout.toString();
+  for (final m in RegExp(
+    r'^\s+vymalo-\S+ \(([-0-9A-Fa-f]+)\)',
+    multiLine: true,
+  ).allMatches(list)) {
+    Process.runSync('xcrun', ['simctl', 'delete', m.group(1)!]);
+  }
+
+  for (final d in devices) {
+    var udid = '';
+    try {
+      stdout.writeln('Creating + booting ${d.sim}…');
+      // No runtime arg → newest installed iOS. Boot BY UDID (booting by name
+      // fails when the named sim doesn't exist / is ambiguous).
+      udid = Process.runSync('xcrun', [
+        'simctl',
+        'create',
+        'vymalo-${d.label}',
+        d.sim,
+      ]).stdout.toString().trim();
+      if (udid.isEmpty) {
+        throw StateError("device type '${d.sim}' unavailable (no UDID)");
+      }
+      if (await _runLive('xcrun', ['simctl', 'boot', udid]) != 0) {
+        throw StateError('simctl boot failed');
+      }
+      await _runLive('xcrun', ['simctl', 'bootstatus', udid, '-b']);
+      await _driveScreenshots(flutter, driver, target, udid, defines);
+      final n = _collectScreenshots(
+        appRoot,
+        iosScreenshotsDir(appRoot, locale: locale),
+        name: (base) => iosDestName(d.label, base),
+      );
+      stdout.writeln('  ✓ collected $n for ${d.label}');
+    } catch (e) {
+      stdout.writeln("Skipping iOS device '${d.sim}': $e");
+    } finally {
+      if (udid.isNotEmpty) {
+        try {
+          Process.runSync('xcrun', ['simctl', 'shutdown', udid]);
+          Process.runSync('xcrun', ['simctl', 'delete', udid]);
+        } catch (_) {}
+      }
+    }
+  }
+
+  final shots = _countPngs(iosScreenshotsDir(appRoot, locale: locale));
+  if (shots == 0) {
+    throw StepFailure(
+      const RunStep(
+        label: 'ios screenshots',
+        executable: '',
+        args: [],
+        workingDir: '',
+      ),
+      65,
+    );
+  }
+  stdout.writeln('Captured $shots iOS screenshot(s).');
 }
