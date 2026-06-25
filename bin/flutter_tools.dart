@@ -993,8 +993,13 @@ class ScreenshotsCommand extends Command<void> {
       for (final d in a.multiOption('dart-define')) '--dart-define=$d',
     ];
 
-    if (platform == 'android' || platform == 'both') {
-      await _captureAndroid(
+    final wantAndroid = platform == 'android' || platform == 'both';
+    final wantIos = platform == 'ios' || platform == 'both';
+
+    var androidCount = 0;
+    var iosCount = 0;
+    if (wantAndroid) {
+      androidCount = await _captureAndroid(
         appRoot: appRoot,
         devices: parseAndroidDevices(a.option('android-devices')!),
         androidHome: a.option('android-home')!.isNotEmpty
@@ -1009,8 +1014,8 @@ class ScreenshotsCommand extends Command<void> {
         locale: locale,
       );
     }
-    if (platform == 'ios' || platform == 'both') {
-      await _captureIos(
+    if (wantIos) {
+      iosCount = await _captureIos(
         appRoot: appRoot,
         devices: parseIosDevices(a.option('ios-devices')!),
         driver: driver,
@@ -1019,6 +1024,27 @@ class ScreenshotsCommand extends Command<void> {
         defines: defines,
         locale: locale,
       );
+    }
+
+    // Where the captures landed + how many, so downstream steps (zip/upload to
+    // S3, deliver) can find them. Emitted BEFORE the fail-loud exit, so a partial
+    // run still exposes what it got (read them with `if: always()`).
+    _emitOutput({
+      'android-dir': wantAndroid ? '$appRoot/fastlane/metadata/android' : '',
+      'ios-dir': wantIos ? iosScreenshotsDir(appRoot, locale: locale) : '',
+      'android-count': '$androidCount',
+      'ios-count': '$iosCount',
+      'count': '${androidCount + iosCount}',
+    });
+
+    // Fail loud: a requested platform that captured nothing is a hollow run.
+    final empty = <String>[
+      if (wantAndroid && androidCount == 0) 'android',
+      if (wantIos && iosCount == 0) 'ios',
+    ];
+    if (empty.isNotEmpty) {
+      stderr.writeln('\n✗ no screenshots captured for: ${empty.join(', ')}');
+      exit(65); // EX_DATAERR
     }
   }
 }
@@ -1101,7 +1127,7 @@ int _countPngs(String dir) {
       .length;
 }
 
-Future<void> _captureAndroid({
+Future<int> _captureAndroid({
   required String appRoot,
   required List<AndroidScreenshotDevice> devices,
   required String androidHome,
@@ -1226,21 +1252,11 @@ Future<void> _captureAndroid({
   }
 
   final shots = _countPngs('$appRoot/fastlane/metadata/android');
-  if (shots == 0) {
-    throw StepFailure(
-      const RunStep(
-        label: 'android screenshots',
-        executable: '',
-        args: [],
-        workingDir: '',
-      ),
-      65,
-    );
-  }
   stdout.writeln('Collected $shots Android screenshot(s).');
+  return shots;
 }
 
-Future<void> _captureIos({
+Future<int> _captureIos({
   required String appRoot,
   required List<IosScreenshotDevice> devices,
   required String driver,
@@ -1303,16 +1319,6 @@ Future<void> _captureIos({
   }
 
   final shots = _countPngs(iosScreenshotsDir(appRoot, locale: locale));
-  if (shots == 0) {
-    throw StepFailure(
-      const RunStep(
-        label: 'ios screenshots',
-        executable: '',
-        args: [],
-        workingDir: '',
-      ),
-      65,
-    );
-  }
   stdout.writeln('Captured $shots iOS screenshot(s).');
+  return shots;
 }

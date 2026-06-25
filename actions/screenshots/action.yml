@@ -38,10 +38,28 @@ inputs:
     description: 'One KEY=VALUE per line → --dart-define for each (e.g. the publishable key).'
     default: ''
 
+outputs:
+  android-dir:
+    description: 'Play `supply` metadata root holding the Android screenshots (empty if android not run).'
+    value: ${{ steps.shots.outputs.android-dir }}
+  ios-dir:
+    description: 'App Store `deliver` screenshots dir holding the iOS screenshots (empty if iOS not run).'
+    value: ${{ steps.shots.outputs.ios-dir }}
+  android-count:
+    description: 'Number of Android PNGs captured.'
+    value: ${{ steps.shots.outputs.android-count }}
+  ios-count:
+    description: 'Number of iOS PNGs captured.'
+    value: ${{ steps.shots.outputs.ios-count }}
+  count:
+    description: 'Total PNGs captured (android + iOS).'
+    value: ${{ steps.shots.outputs.count }}
+
 runs:
   using: composite
   steps:
-    - shell: bash
+    - id: shots
+      shell: bash
       working-directory: ${{ github.action_path }}/../..
       # Route inputs through env (never interpolated into the script) so a
       # user-controlled value can't break out and run shell — the #11 pattern.
