@@ -1191,7 +1191,10 @@ Future<int> _captureAndroid({
     // One emulator at a time (killed below) → console serial is always
     // emulator-5554. Clean cold boot: -no-snapshot-load -wipe-data (avoids the
     // stale-snapshot phone crash); -no-snapshot-save so it never goes stale.
-    final emu = await Process.start(emulator, [
+    // Detached: it runs independently and is killed via `adb emu kill` below. Do
+    // NOT touch its .exitCode — a detached process throws "Bad state: Process is
+    // detached" the instant you await it.
+    await Process.start(emulator, [
       '-avd',
       d.avd,
       '-no-window',
@@ -1201,7 +1204,6 @@ Future<int> _captureAndroid({
       '-wipe-data',
       '-no-metrics',
     ], mode: ProcessStartMode.detached);
-    emu.exitCode.ignore();
     try {
       // Target the serial explicitly (one emulator at a time → emulator-5554),
       // so a stray device on the host can't confuse wait-for-device / getprop.
