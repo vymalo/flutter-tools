@@ -108,6 +108,25 @@ Each action's `action.yml` documents every input; the most useful knobs:
 - **`codegen`** — `project-dir`, `api-dir`, `codegen-tool-dir`, `sdk-floor`,
   `clean`, `api-pubspec-template`. Tuned for an OpenAPI-generated client + a
   layered `build_runner`; point the dirs at your layout.
+- **`screenshots`** — `platform`, `driver`/`target`, `locale`, `dart-defines`,
+  and the **device matrix**: `android-devices` (`"avd:profile:class,…"`) and
+  `ios-devices` (`"sim|label,…"`). The *simulator/AVD* picks the resolution;
+  `fastlane deliver` routes each PNG to the matching App Store Connect display
+  slot **by its pixel size** (the label is just the filename prefix, for grouping
+  + order). To hit a specific slot, choose the simulator that yields it:
+
+  | ASC slot | Resolution (portrait) | Simulator |
+  |---|---|---|
+  | iPhone 6.9″ | 1320×2868 | `iPhone 16 Pro Max` |
+  | iPhone 6.5″ | 1242×2688 / 1284×2778 | `iPhone 11 Pro Max` / `iPhone 14 Plus` |
+  | iPhone 6.7″ | 1290×2796 | `iPhone 15 Plus` |
+  | iPad 13″ | 2064×2752 | `iPad Pro 13-inch (M4)` |
+  | iPad 12.9″ | 2048×2732 | `iPad Pro (12.9-inch) (6th generation)` |
+
+  > ⚠️ Plain `iPhone 16 Pro` is **6.3″ (1206×2622)** — *not* an ASC slot. Use the
+  > **Max**. A device type missing from the runner's Xcode is skipped (per-device
+  > rescue), so the run won't fail — but you'll silently miss that slot; check the
+  > artifact. Apple Watch needs a watchOS sim + a watch app target — not covered.
 
 ## The CLI (run it locally)
 

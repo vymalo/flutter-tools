@@ -15,9 +15,11 @@ void main() {
     test('ios = 6.9" + 6.5" + iPad', () {
       expect(defaultIosDevices.map((d) => d.label), [
         'iPhone69',
-        'iPhone65',
-        'iPadPro129',
+        'iPhone67',
+        'iPadPro13',
       ]);
+      // The 6.9" default must be the Max (1320×2868), not the 6.3" iPhone 16 Pro.
+      expect(defaultIosDevices.first.sim, 'iPhone 16 Pro Max');
     });
   });
 
