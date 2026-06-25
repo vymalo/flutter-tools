@@ -64,8 +64,24 @@ runs:
         path: ${{ inputs.file }}
         retention-days: ${{ inputs.retention-days }}
 
-    - name: Ensure AWS CLI
+    # Only install the AWS CLI when it's absent. install-aws-cli-action installs to
+    # /usr/local and fails on an Apple-Silicon macOS runner (where aws is typically
+    # already present via Homebrew) — so prefer the existing binary, then brew on
+    # macOS, and fall back to the installer action on Linux/Windows.
+    - name: Detect AWS CLI
+      id: awscli
       if: ${{ inputs.to-s3 == 'true' }}
+      shell: bash
+      run: |
+        if command -v aws >/dev/null 2>&1; then
+          echo "have=true" >> "$GITHUB_OUTPUT"
+        elif [ "$RUNNER_OS" = "macOS" ] && command -v brew >/dev/null 2>&1 && brew install awscli; then
+          echo "have=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "have=false" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Install AWS CLI (Linux/Windows fallback)
+      if: ${{ inputs.to-s3 == 'true' && steps.awscli.outputs.have != 'true' }}
       uses: unfor19/install-aws-cli-action@v1
 
     - id: s3
