@@ -24,16 +24,16 @@ class TestflightSubmitConfig {
 
 /// Plan a single `fastlane run upload_to_testflight …` invocation.
 List<Step> planTestflightSubmit(TestflightSubmitConfig c) => [
-      RunStep(
-        label: 'fastlane pilot → TestFlight',
-        executable: c.fastlane,
-        args: [
-          'run',
-          'upload_to_testflight',
-          'api_key_path:${c.apiKeyPath}',
-          'ipa:${c.ipaPath}',
-          'skip_waiting_for_build_processing:${c.skipWaitingForBuildProcessing}',
-        ],
-        workingDir: c.workingDir,
-      ),
-    ];
+  RunStep(
+    label: 'fastlane pilot → TestFlight',
+    executable: c.fastlane,
+    args: [
+      'run',
+      'upload_to_testflight',
+      'api_key_path:${c.apiKeyPath}',
+      'ipa:${c.ipaPath}',
+      'skip_waiting_for_build_processing:${c.skipWaitingForBuildProcessing}',
+    ],
+    workingDir: c.workingDir,
+  ),
+];

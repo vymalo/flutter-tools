@@ -51,22 +51,27 @@ runs:
         ANDROID_KEYSTORE_PASSWORD: ${{ inputs.keystore-password }}
         ANDROID_KEY_ALIAS: ${{ inputs.key-alias }}
         ANDROID_KEY_PASSWORD: ${{ inputs.key-password }}
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_ARTIFACTS: ${{ inputs.artifacts }}
+        INPUT_BUILD_NUMBER: ${{ inputs.build-number }}
+        INPUT_DART_DEFINES: ${{ inputs.dart-defines }}
       run: |
         set -euo pipefail
         dart pub get
 
         args=(
           android-build
-          --workspace "${{ inputs.workspace }}"
-          --project-dir "${{ inputs.project-dir }}"
-          --artifacts "${{ inputs.artifacts }}"
+          --workspace "$INPUT_WORKSPACE"
+          --project-dir "$INPUT_PROJECT_DIR"
+          --artifacts "$INPUT_ARTIFACTS"
         )
-        if [ -n "${{ inputs.build-number }}" ]; then
-          args+=(--build-number "${{ inputs.build-number }}")
+        if [ -n "$INPUT_BUILD_NUMBER" ]; then
+          args+=(--build-number "$INPUT_BUILD_NUMBER")
         fi
         # One --dart-define per non-empty line of the dart-defines input.
         while IFS= read -r line; do
           [ -n "$line" ] && args+=(--dart-define "$line")
-        done <<< "${{ inputs.dart-defines }}"
+        done <<< "$INPUT_DART_DEFINES"
 
         dart run bin/flutter_tools.dart "${args[@]}"

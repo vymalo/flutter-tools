@@ -26,17 +26,19 @@ void main() {
       expect(toolGet.workingDir, '/w/mobile/tool/openapi_codegen');
 
       final appGet = steps.whereType<RunStep>().firstWhere(
-            (s) => s.label == 'App flutter pub get',
-          );
+        (s) => s.label == 'App flutter pub get',
+      );
       expect(appGet.workingDir, '/w/mobile');
       expect(appGet.executable, 'flutter');
     });
 
     test('a pubspec template replaces the SDK-floor patch with a copy', () {
-      final steps = planCodegen(const CodegenConfig(
-        workspace: '/w',
-        apiPubspecTemplate: 'mobile/openapi/api-pubspec.yaml',
-      ));
+      final steps = planCodegen(
+        const CodegenConfig(
+          workspace: '/w',
+          apiPubspecTemplate: 'mobile/openapi/api-pubspec.yaml',
+        ),
+      );
       expect(steps.whereType<PatchSdkFloorStep>(), isEmpty);
       final copy = steps.whereType<CopyFileStep>().single;
       expect(copy.from, '/w/mobile/openapi/api-pubspec.yaml');
@@ -44,13 +46,11 @@ void main() {
     });
 
     test('clean=false drops the lock-delete + build_runner clean steps', () {
-      final steps =
-          planCodegen(const CodegenConfig(workspace: '/w', clean: false));
-      expect(steps.whereType<DeleteFileStep>(), isEmpty);
-      expect(
-        steps.where((s) => s.label == 'API build_runner clean'),
-        isEmpty,
+      final steps = planCodegen(
+        const CodegenConfig(workspace: '/w', clean: false),
       );
+      expect(steps.whereType<DeleteFileStep>(), isEmpty);
+      expect(steps.where((s) => s.label == 'API build_runner clean'), isEmpty);
     });
 
     test('upgradeDartStyle injects the upgrade before the API build', () {
@@ -66,16 +66,21 @@ void main() {
     });
 
     test('custom build-runner args propagate to every build_runner build', () {
-      final steps = planCodegen(const CodegenConfig(
-        workspace: '/w',
-        buildRunnerArgs: ['--delete-conflicting-outputs', '--verbose'],
-      ));
+      final steps = planCodegen(
+        const CodegenConfig(
+          workspace: '/w',
+          buildRunnerArgs: ['--delete-conflicting-outputs', '--verbose'],
+        ),
+      );
       final builds = steps.whereType<RunStep>().where(
-          (s) => s.args.contains('build_runner') && s.args.contains('build'));
+        (s) => s.args.contains('build_runner') && s.args.contains('build'),
+      );
       expect(builds, isNotEmpty);
       for (final b in builds) {
         expect(
-            b.args, containsAll(['--delete-conflicting-outputs', '--verbose']));
+          b.args,
+          containsAll(['--delete-conflicting-outputs', '--verbose']),
+        );
       }
     });
   });

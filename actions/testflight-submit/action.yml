@@ -30,7 +30,7 @@ runs:
     # one when absent. No-op when fastlane is already on PATH.
     - name: Ensure fastlane
       shell: bash
-      run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document
+      run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document --version '~>2.230'
 
     - shell: bash
       working-directory: ${{ github.action_path }}/../..
@@ -38,14 +38,18 @@ runs:
         APP_STORE_CONNECT_KEY_ID: ${{ inputs.asc-key-id }}
         APP_STORE_CONNECT_ISSUER_ID: ${{ inputs.asc-issuer-id }}
         APP_STORE_CONNECT_API_KEY_BASE64: ${{ inputs.asc-api-key-base64 }}
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_SKIP_WAITING: ${{ inputs.skip-waiting }}
+        INPUT_IPA: ${{ inputs.ipa }}
       run: |
         set -euo pipefail
         dart pub get
         args=(
           testflight-submit
-          --workspace "${{ inputs.workspace }}"
-          --project-dir "${{ inputs.project-dir }}"
-          --${{ inputs.skip-waiting == 'true' && 'skip-waiting' || 'no-skip-waiting' }}
+          --workspace "$INPUT_WORKSPACE"
+          --project-dir "$INPUT_PROJECT_DIR"
+          --$([ "$INPUT_SKIP_WAITING" = 'true' ] && echo 'skip-waiting' || echo 'no-skip-waiting')
         )
-        [ -n "${{ inputs.ipa }}" ] && args+=(--ipa "${{ inputs.ipa }}")
+        [ -n "$INPUT_IPA" ] && args+=(--ipa "$INPUT_IPA")
         dart run bin/flutter_tools.dart "${args[@]}"

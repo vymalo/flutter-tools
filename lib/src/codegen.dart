@@ -98,8 +98,9 @@ List<Step> planCodegen(CodegenConfig c) {
     // 3. Generate the API package's *.g.dart (json_serializable / copy_with).
     if (c.clean)
       DeleteFileStep(
-          label: 'Drop stale API pubspec.lock',
-          path: resolveIn(apiDir, 'pubspec.lock')),
+        label: 'Drop stale API pubspec.lock',
+        path: resolveIn(apiDir, 'pubspec.lock'),
+      ),
     RunStep(
       label: 'API pub get',
       executable: c.dart,

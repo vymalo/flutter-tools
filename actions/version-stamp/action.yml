@@ -39,13 +39,18 @@ runs:
     - id: stamp
       shell: bash
       working-directory: ${{ github.action_path }}/../..
+      env:
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_BUILD_NUMBER: ${{ inputs.build-number }}
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
         dart pub get
         args=(
           version-stamp
-          --workspace "${{ inputs.workspace }}"
-          --project-dir "${{ inputs.project-dir }}"
-          --build-number "${{ inputs.build-number }}"
+          --workspace "$INPUT_WORKSPACE"
+          --project-dir "$INPUT_PROJECT_DIR"
+          --build-number "$INPUT_BUILD_NUMBER"
         )
-        [ -n "${{ inputs.version }}" ] && args+=(--version "${{ inputs.version }}")
+        [ -n "$INPUT_VERSION" ] && args+=(--version "$INPUT_VERSION")
         dart run bin/flutter_tools.dart "${args[@]}"

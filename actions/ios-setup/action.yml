@@ -44,7 +44,7 @@ runs:
 
     - name: Set up Java
       if: ${{ inputs.setup-java == 'true' }}
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         distribution: temurin
         java-version: ${{ inputs.java-version }}
@@ -53,15 +53,20 @@ runs:
       if: ${{ inputs.run-codegen == 'true' }}
       shell: bash
       working-directory: ${{ github.action_path }}/../..
+      env:
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_API_PUBSPEC_TEMPLATE: ${{ inputs.api-pubspec-template }}
+        INPUT_CLEAN: ${{ inputs.clean }}
       run: >-
         dart pub get && dart run bin/flutter_tools.dart codegen
-        --workspace "${{ inputs.workspace }}"
-        --project-dir "${{ inputs.project-dir }}"
-        --api-pubspec-template "${{ inputs.api-pubspec-template }}"
-        --${{ inputs.clean == 'true' && 'clean' || 'no-clean' }}
+        --workspace "$INPUT_WORKSPACE"
+        --project-dir "$INPUT_PROJECT_DIR"
+        --api-pubspec-template "$INPUT_API_PUBSPEC_TEMPLATE"
+        --$([ "$INPUT_CLEAN" = 'true' ] && echo 'clean' || echo 'no-clean')
 
     - name: Cache Bundler
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ inputs.project-dir }}/vendor/bundle
         key: bundler-${{ hashFiles(format('{0}/Gemfile', inputs.project-dir)) }}
@@ -103,14 +108,14 @@ runs:
           echo "$RUNNER_TEMP/flbin" >> "$GITHUB_PATH"
           echo "Wrapped bundled fastlane at $RUNNER_TEMP/flbin/fastlane"
         else
-          gem install fastlane --no-document
+          gem install fastlane --no-document --version '~>2.230'
           echo "$(ruby -e 'puts Gem.bindir')" >> "$GITHUB_PATH"
           echo "Installed global fastlane to $(ruby -e 'puts Gem.bindir')"
         fi
 
     - name: Cache Pods
       if: ${{ inputs.pod-install == 'true' }}
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ inputs.project-dir }}/ios/Pods
         key: pods-${{ hashFiles(format('{0}/ios/Podfile', inputs.project-dir)) }}

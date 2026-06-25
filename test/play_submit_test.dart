@@ -6,11 +6,15 @@ void main() {
     RunStep only(List<Step> s) => s.whereType<RunStep>().single;
 
     test('defaults: internal track, completed, AAB-only upload', () {
-      final step = only(planPlaySubmit(const PlaySubmitConfig(
-        aabPath: '/w/app.aab',
-        packageName: 'com.acme.app',
-        jsonKeyPath: '/tmp/key.json',
-      )));
+      final step = only(
+        planPlaySubmit(
+          const PlaySubmitConfig(
+            aabPath: '/w/app.aab',
+            packageName: 'com.acme.app',
+            jsonKeyPath: '/tmp/key.json',
+          ),
+        ),
+      );
       expect(step.executable, 'fastlane');
       expect(step.args, containsAllInOrder(['run', 'upload_to_play_store']));
       expect(
@@ -30,30 +34,39 @@ void main() {
     });
 
     test('staged rollout on a production inProgress release', () {
-      final step = only(planPlaySubmit(const PlaySubmitConfig(
-        aabPath: '/w/app.aab',
-        packageName: 'com.acme.app',
-        jsonKeyPath: '/tmp/key.json',
-        track: 'production',
-        releaseStatus: 'inProgress',
-        rollout: '0.2',
-      )));
+      final step = only(
+        planPlaySubmit(
+          const PlaySubmitConfig(
+            aabPath: '/w/app.aab',
+            packageName: 'com.acme.app',
+            jsonKeyPath: '/tmp/key.json',
+            track: 'production',
+            releaseStatus: 'inProgress',
+            rollout: '0.2',
+          ),
+        ),
+      );
       expect(
-          step.args,
-          containsAll([
-            'track:production',
-            'release_status:inProgress',
-            'rollout:0.2'
-          ]));
+        step.args,
+        containsAll([
+          'track:production',
+          'release_status:inProgress',
+          'rollout:0.2',
+        ]),
+      );
     });
 
     test('changes-not-sent-for-review toggles the flag', () {
-      final step = only(planPlaySubmit(const PlaySubmitConfig(
-        aabPath: '/w/app.aab',
-        packageName: 'com.acme.app',
-        jsonKeyPath: '/tmp/key.json',
-        changesNotSentForReview: true,
-      )));
+      final step = only(
+        planPlaySubmit(
+          const PlaySubmitConfig(
+            aabPath: '/w/app.aab',
+            packageName: 'com.acme.app',
+            jsonKeyPath: '/tmp/key.json',
+            changesNotSentForReview: true,
+          ),
+        ),
+      );
       expect(step.args, contains('changes_not_sent_for_review:true'));
     });
   });

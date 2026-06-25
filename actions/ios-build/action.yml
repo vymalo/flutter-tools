@@ -50,19 +50,23 @@ runs:
         IOS_CERTIFICATE_BASE64: ${{ inputs.certificate-base64 }}
         IOS_CERTIFICATE_PASSWORD: ${{ inputs.certificate-password }}
         IOS_APPSTORE_PROVISION_PROFILE_BASE64: ${{ inputs.provision-profile-base64 }}
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_APP_ID: ${{ inputs.app-id }}
+        INPUT_DART_DEFINES: ${{ inputs.dart-defines }}
       run: |
         set -euo pipefail
         dart pub get
 
         args=(
           ios-build
-          --workspace "${{ inputs.workspace }}"
-          --project-dir "${{ inputs.project-dir }}"
-          --app-id "${{ inputs.app-id }}"
+          --workspace "$INPUT_WORKSPACE"
+          --project-dir "$INPUT_PROJECT_DIR"
+          --app-id "$INPUT_APP_ID"
         )
         # One --dart-define per non-empty line of the dart-defines input.
         while IFS= read -r line; do
           [ -n "$line" ] && args+=(--dart-define "$line")
-        done <<< "${{ inputs.dart-defines }}"
+        done <<< "$INPUT_DART_DEFINES"
 
         dart run bin/flutter_tools.dart "${args[@]}"

@@ -27,8 +27,10 @@ class VersionStampConfig {
 
 /// Plan: patch `<projectDir>/pubspec.yaml` `version:` to `x.y.z+<buildNumber>`.
 List<Step> planVersionStamp(VersionStampConfig c) {
-  final pubspec =
-      resolveIn(resolveIn(c.workspace, c.projectDir), 'pubspec.yaml');
+  final pubspec = resolveIn(
+    resolveIn(c.workspace, c.projectDir),
+    'pubspec.yaml',
+  );
   final target = c.marketingVersion ?? '<keep>';
   return [
     PatchVersionStep(
