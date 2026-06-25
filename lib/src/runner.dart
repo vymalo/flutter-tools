@@ -11,8 +11,8 @@ import 'step.dart';
 /// stream everything live.
 class StepRunner {
   StepRunner({this.dryRun = false, bool? verbose, void Function(String)? log})
-      : verbose = verbose ?? Platform.environment['RUNNER_DEBUG'] == '1',
-        _log = log ?? stdout.writeln;
+    : verbose = verbose ?? Platform.environment['RUNNER_DEBUG'] == '1',
+      _log = log ?? stdout.writeln;
 
   /// Print the plan instead of executing it.
   final bool dryRun;
@@ -56,9 +56,9 @@ class StepRunner {
         if (!f.existsSync()) throw StepFailure(step, 66); // EX_NOINPUT
         f.writeAsStringSync(
           f.readAsStringSync().replaceFirst(
-                RegExp(r'''sdk:\s*['"][^'"]*['"]'''),
-                "sdk: '${step.sdkFloor}'",
-              ),
+            RegExp(r'''sdk:\s*['"][^'"]*['"]'''),
+            "sdk: '${step.sdkFloor}'",
+          ),
         );
         _log('  ✓ patched ${step.path}');
       case PatchVersionStep():
@@ -74,23 +74,26 @@ class StepRunner {
           }
           marketing = step.marketingVersion!;
         } else {
-          final m =
-              RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
-                  .firstMatch(content);
+          final m = RegExp(
+            r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)',
+            multiLine: true,
+          ).firstMatch(content);
           if (m == null) throw StepFailure(step, 65); // EX_DATAERR
           marketing = m.group(1)!;
         }
-        f.writeAsStringSync(content.replaceFirst(
-          RegExp(r'^version:.*$', multiLine: true),
-          'version: $marketing+${step.buildNumber}',
-        ));
+        f.writeAsStringSync(
+          content.replaceFirst(
+            RegExp(r'^version:.*$', multiLine: true),
+            'version: $marketing+${step.buildNumber}',
+          ),
+        );
         _log('  ✓ stamped ${step.path} -> $marketing+${step.buildNumber}');
     }
   }
 
   Future<void> _run(RunStep step) async {
     final sw = Stopwatch()..start();
-    final cmd = '${step.executable} ${step.args.join(' ')}';
+    final cmd = step.toLogString();
 
     if (verbose) {
       _log('  \$ $cmd  (${step.workingDir})');
@@ -99,7 +102,6 @@ class StepRunner {
         step.args,
         workingDirectory: step.workingDir,
         mode: ProcessStartMode.inheritStdio,
-        runInShell: Platform.isWindows,
       );
       final code = await proc.exitCode;
       if (code != 0) {
@@ -117,7 +119,6 @@ class StepRunner {
       step.executable,
       step.args,
       workingDirectory: step.workingDir,
-      runInShell: Platform.isWindows,
     );
     final out = <int>[];
     final err = <int>[];

@@ -33,7 +33,7 @@ inputs:
     description: 'Set up Ruby first (off when the runner already has it).'
     default: 'false'
   ruby-version:
-    default: '3.2'
+    default: '3.4'
 
 runs:
   using: composite
@@ -46,7 +46,7 @@ runs:
 
     - name: Ensure fastlane
       shell: bash
-      run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document
+      run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document --version '~>2.230'
 
     - name: Upload to Play
       shell: bash
@@ -54,18 +54,24 @@ runs:
       env:
         GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ inputs.service-account-json-base64 }}
         GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ inputs.service-account-json }}
+        INPUT_AAB: ${{ inputs.aab }}
+        INPUT_PACKAGE_NAME: ${{ inputs.package-name }}
+        INPUT_TRACK: ${{ inputs.track }}
+        INPUT_RELEASE_STATUS: ${{ inputs.release-status }}
+        INPUT_CHANGES_NOT_SENT_FOR_REVIEW: ${{ inputs.changes-not-sent-for-review }}
+        INPUT_ROLLOUT: ${{ inputs.rollout }}
       run: |
         set -euo pipefail
         dart pub get
         args=(
           play-submit
-          --aab "${{ inputs.aab }}"
-          --package-name "${{ inputs.package-name }}"
-          --track "${{ inputs.track }}"
-          --release-status "${{ inputs.release-status }}"
-          --${{ inputs.changes-not-sent-for-review == 'true' && 'changes-not-sent-for-review' || 'no-changes-not-sent-for-review' }}
+          --aab "$INPUT_AAB"
+          --package-name "$INPUT_PACKAGE_NAME"
+          --track "$INPUT_TRACK"
+          --release-status "$INPUT_RELEASE_STATUS"
+          --$([ "$INPUT_CHANGES_NOT_SENT_FOR_REVIEW" = 'true' ] && echo 'changes-not-sent-for-review' || echo 'no-changes-not-sent-for-review')
         )
-        if [ -n "${{ inputs.rollout }}" ]; then
-          args+=(--rollout "${{ inputs.rollout }}")
+        if [ -n "$INPUT_ROLLOUT" ]; then
+          args+=(--rollout "$INPUT_ROLLOUT")
         fi
         dart run bin/flutter_tools.dart "${args[@]}"

@@ -62,10 +62,11 @@ class IosBuildConfig {
 const _wwdrVersions = ['G3', 'G4', 'G5', 'G6'];
 
 /// The App Store ExportOptions.plist (manual signing, Apple Distribution).
-String iosExportOptionsPlist(
-        {required String teamId,
-        required String appId,
-        required String profileName}) =>
+String iosExportOptionsPlist({
+  required String teamId,
+  required String appId,
+  required String profileName,
+}) =>
     '<?xml version="1.0" encoding="UTF-8"?>\n'
     '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
     '<plist version="1.0">\n'
@@ -98,18 +99,27 @@ List<Step> planIosBuild(IosBuildConfig c) {
   final xcodeproj = resolveIn(appDir, 'ios/Runner.xcodeproj');
   final defines = [for (final d in c.dartDefines) '--dart-define=$d'];
 
-  RunStep sec(String label, List<String> args, {bool allowFailure = false}) =>
-      RunStep(
-          label: label,
-          executable: 'security',
-          args: args,
-          workingDir: appDir,
-          allowFailure: allowFailure);
+  RunStep sec(
+    String label,
+    List<String> args, {
+    bool allowFailure = false,
+    Set<int> secretArgIndices = const {},
+  }) => RunStep(
+    label: label,
+    executable: 'security',
+    args: args,
+    workingDir: appDir,
+    allowFailure: allowFailure,
+    secretArgIndices: secretArgIndices,
+  );
 
   return [
     // ── ephemeral keychain ──
-    sec('Create CI keychain',
-        ['create-keychain', '-p', c.keychainPassword, c.keychainPath]),
+    sec(
+      'Create CI keychain',
+      ['create-keychain', '-p', c.keychainPassword, c.keychainPath],
+      secretArgIndices: {2},
+    ),
     sec('Default keychain', ['default-keychain', '-s', c.keychainPath]),
     // Add the keychain to the user SEARCH LIST (prepended, keeping the existing
     // entries) — otherwise `xcodebuild -exportArchive` can't find the imported
@@ -127,38 +137,53 @@ List<Step> planIosBuild(IosBuildConfig c) {
       ],
       workingDir: appDir,
     ),
-    sec('Unlock keychain',
-        ['unlock-keychain', '-p', c.keychainPassword, c.keychainPath]),
+    sec(
+      'Unlock keychain',
+      ['unlock-keychain', '-p', c.keychainPassword, c.keychainPath],
+      secretArgIndices: {2},
+    ),
     // Keep it unlocked long enough for the whole build (no auto-lock surprise
     // mid-codesign in a headless session).
-    sec('Keychain settings (no auto-lock)',
-        ['set-keychain-settings', '-lut', '21600', c.keychainPath]),
+    sec('Keychain settings (no auto-lock)', [
+      'set-keychain-settings',
+      '-lut',
+      '21600',
+      c.keychainPath,
+    ]),
 
     // ── distribution cert ──
     // -A (any app) + -T codesign/xcodebuild grant access without a UI dialog;
     // set-key-partition-list completes that on macOS 13+ headless CI.
-    sec('Import distribution certificate', [
-      'import',
-      c.certPath,
-      '-P',
-      c.certPassword,
-      '-A',
-      '-T',
-      '/usr/bin/codesign',
-      '-T',
-      '/usr/bin/xcodebuild',
-      '-k',
-      c.keychainPath,
-    ]),
-    sec('Grant key partition list', [
-      'set-key-partition-list',
-      '-S',
-      'apple-tool:,apple:,codesign:',
-      '-s',
-      '-k',
-      c.keychainPassword,
-      c.keychainPath,
-    ]),
+    sec(
+      'Import distribution certificate',
+      [
+        'import',
+        c.certPath,
+        '-P',
+        c.certPassword,
+        '-A',
+        '-T',
+        '/usr/bin/codesign',
+        '-T',
+        '/usr/bin/xcodebuild',
+        '-k',
+        c.keychainPath,
+      ],
+      secretArgIndices: {3},
+    ),
+    sec(
+      'Grant key partition list',
+      [
+        'set-key-partition-list',
+        '-S',
+        'apple-tool:,apple:,codesign:',
+        '-s',
+        '-k',
+        c.keychainPassword,
+        c.keychainPath,
+      ],
+      secretArgIndices: {5},
+    ),
 
     // ── Apple WWDR intermediates (best-effort; some versions 404 / already present) ──
     for (final g in _wwdrVersions)
@@ -207,7 +232,10 @@ List<Step> planIosBuild(IosBuildConfig c) {
       label: 'Write ExportOptions.plist',
       path: exportPlist,
       contents: iosExportOptionsPlist(
-          teamId: c.teamId, appId: c.appId, profileName: c.profileName),
+        teamId: c.teamId,
+        appId: c.appId,
+        profileName: c.profileName,
+      ),
     ),
     RunStep(
       label: 'flutter build ipa (release, --no-codesign)',

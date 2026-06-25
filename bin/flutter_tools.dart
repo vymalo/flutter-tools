@@ -7,19 +7,38 @@ import 'package:args/command_runner.dart';
 
 import 'package:vymalo_flutter_tools/vymalo_flutter_tools.dart';
 
+/// Write secret material to a tightly-locked temp file with a random name.
+File _writeSecretTemp(String prefix, String suffix, List<int> bytes) {
+  final dir = Directory.systemTemp.createTempSync(prefix);
+  if (!Platform.isWindows) {
+    Process.runSync('chmod', ['0700', dir.path]);
+  }
+  final f = File('${dir.path}/$suffix');
+  f.writeAsBytesSync(bytes);
+  if (!Platform.isWindows) {
+    Process.runSync('chmod', ['0600', f.path]);
+  }
+  return f;
+}
+
+/// Write secret text to a tightly-locked temp file with a random name.
+File _writeSecretText(String prefix, String suffix, String text) =>
+    _writeSecretTemp(prefix, suffix, utf8.encode(text));
+
 Future<void> main(List<String> args) async {
-  final runner = CommandRunner<void>(
-    'flutter-tools',
-    'Reusable Flutter CI/CD steps for Vymalo projects.',
-  )
-    ..addCommand(CodegenCommand())
-    ..addCommand(VersionStampCommand())
-    ..addCommand(AndroidBuildCommand())
-    ..addCommand(IosBuildCommand())
-    ..addCommand(TestflightSubmitCommand())
-    ..addCommand(AppStoreSubmitCommand())
-    ..addCommand(PlaySubmitCommand())
-    ..addCommand(S3UploadCommand());
+  final runner =
+      CommandRunner<void>(
+          'flutter-tools',
+          'Reusable Flutter CI/CD steps for Vymalo projects.',
+        )
+        ..addCommand(CodegenCommand())
+        ..addCommand(VersionStampCommand())
+        ..addCommand(AndroidBuildCommand())
+        ..addCommand(IosBuildCommand())
+        ..addCommand(TestflightSubmitCommand())
+        ..addCommand(AppStoreSubmitCommand())
+        ..addCommand(PlaySubmitCommand())
+        ..addCommand(S3UploadCommand());
 
   try {
     await runner.run(args);
@@ -43,11 +62,17 @@ class VersionStampCommand extends Command<void> {
     argParser
       ..addOption('workspace', defaultsTo: Directory.current.path)
       ..addOption('project-dir', defaultsTo: 'mobile')
-      ..addOption('build-number',
-          mandatory: true, help: 'The +build value (e.g. the CI run number).')
-      ..addOption('version',
-          help: 'Marketing x.y.z to set (overrides pubspec; e.g. a git-tag '
-              'version). Omit to keep the existing pubspec version.')
+      ..addOption(
+        'build-number',
+        mandatory: true,
+        help: 'The +build value (e.g. the CI run number).',
+      )
+      ..addOption(
+        'version',
+        help:
+            'Marketing x.y.z to set (overrides pubspec; e.g. a git-tag '
+            'version). Omit to keep the existing pubspec version.',
+      )
       ..addFlag('verbose', defaultsTo: false)
       ..addFlag('dry-run', defaultsTo: false);
   }
@@ -68,19 +93,24 @@ class VersionStampCommand extends Command<void> {
       buildNumber: a.option('build-number')!,
       marketingVersion: (v != null && v.isNotEmpty) ? v : null,
     );
-    await StepRunner(dryRun: a.flag('dry-run'), verbose: _verbose(a))
-        .run(planVersionStamp(config));
+    await StepRunner(
+      dryRun: a.flag('dry-run'),
+      verbose: _verbose(a),
+    ).run(planVersionStamp(config));
     _emitVersionOutputs(config);
   }
 
   void _emitVersionOutputs(VersionStampConfig c) {
-    final pubspec =
-        File(resolveIn(resolveIn(c.workspace, c.projectDir), 'pubspec.yaml'));
-    final marketing = c.marketingVersion ??
+    final pubspec = File(
+      resolveIn(resolveIn(c.workspace, c.projectDir), 'pubspec.yaml'),
+    );
+    final marketing =
+        c.marketingVersion ??
         (pubspec.existsSync()
-            ? RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
-                .firstMatch(pubspec.readAsStringSync())
-                ?.group(1)
+            ? RegExp(
+                r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)',
+                multiLine: true,
+              ).firstMatch(pubspec.readAsStringSync())?.group(1)
             : null);
     final version = marketing ?? '0.0.0';
     _emitOutput({
@@ -91,18 +121,33 @@ class VersionStampCommand extends Command<void> {
   }
 }
 
-/// `flutter-tools ios-build` — signed App Store IPA. Signing material comes from
-/// the environment (never flags): IOS_CERTIFICATE_BASE64 / _PASSWORD,
-/// IOS_APPSTORE_PROVISION_PROFILE_BASE64, APPLE_TEAM_ID, IOS_APPSTORE_PROFILE_NAME.
+/// iOS build command.
+///
+/// ### Security note
+/// The macOS `security` CLI has no stdin alternative for password flags
+/// (`-p`, `-P`, `-k`). Passwords appear briefly in the process argv and
+/// are visible to other processes via `ps(1)` during execution. This is
+/// a macOS platform limitation. Mitigations applied:
+/// - Passwords are redacted from all CLI tool logs (redactable RunStep).
+/// - The runtime-generated keychain password is registered with
+///   `::add-mask::` for GitHub Actions log masking.
+/// - An ephemeral keychain is used and deleted in a `finally` block.
+/// - Recommendation: use ephemeral runners or single-tenant self-hosted
+///   runners for iOS builds.
 class IosBuildCommand extends Command<void> {
   IosBuildCommand() {
     argParser
       ..addOption('workspace', defaultsTo: Directory.current.path)
       ..addOption('project-dir', defaultsTo: 'mobile')
-      ..addOption('app-id',
-          defaultsTo: 'com.vymalo.vymalo', help: 'Bundle identifier.')
-      ..addMultiOption('dart-define',
-          help: 'KEY=VALUE, repeatable → --dart-define=KEY=VALUE.')
+      ..addOption(
+        'app-id',
+        defaultsTo: 'com.vymalo.vymalo',
+        help: 'Bundle identifier.',
+      )
+      ..addMultiOption(
+        'dart-define',
+        help: 'KEY=VALUE, repeatable → --dart-define=KEY=VALUE.',
+      )
       ..addOption('flutter', defaultsTo: 'flutter')
       ..addOption('fastlane', defaultsTo: 'fastlane')
       ..addFlag('verbose', defaultsTo: false)
@@ -121,31 +166,68 @@ class IosBuildCommand extends Command<void> {
     final env = Platform.environment;
     final dryRun = a.flag('dry-run');
 
-    final tmp = Directory.systemTemp.path;
-    final stamp = DateTime.now().microsecondsSinceEpoch;
-    final certPath = '$tmp/vymalo-$stamp.p12';
-    final profilePath = '$tmp/vymalo-$stamp.mobileprovision';
-    final keychainPath = '$tmp/vymalo-ci-$stamp.keychain-db';
+    var certPath = '';
+    var profilePath = '';
+    final keychainPath = dryRun
+        ? '<keychain>'
+        : (() {
+            final kcDir = Directory.systemTemp.createTempSync('vymalo-kc');
+            if (!Platform.isWindows) {
+              Process.runSync('chmod', ['0700', kcDir.path]);
+            }
+            return '${kcDir.path}/ci.keychain-db';
+          })();
+
+    final certB64 = (env['IOS_CERTIFICATE_BASE64'] ?? '').trim();
+    final profileB64 = (env['IOS_APPSTORE_PROVISION_PROFILE_BASE64'] ?? '')
+        .trim();
 
     if (!dryRun) {
-      File(certPath).writeAsBytesSync(base64.decode(
-          (env['IOS_CERTIFICATE_BASE64'] ?? '').replaceAll(RegExp(r'\s'), '')));
-      File(profilePath).writeAsBytesSync(base64.decode(
-          (env['IOS_APPSTORE_PROVISION_PROFILE_BASE64'] ?? '')
-              .replaceAll(RegExp(r'\s'), '')));
+      if (certB64.isEmpty || profileB64.isEmpty) {
+        throw UsageException(
+          'iOS build requires IOS_CERTIFICATE_BASE64 and '
+          'IOS_APPSTORE_PROVISION_PROFILE_BASE64 to be set.',
+          usage,
+        );
+      }
+      if ((env['APPLE_TEAM_ID'] ?? '').trim().isEmpty) {
+        throw UsageException(
+          'iOS build requires APPLE_TEAM_ID to be set.',
+          usage,
+        );
+      }
+      final certFile = _writeSecretTemp(
+        'vymalo-cert',
+        'cert.p12',
+        base64.decode(certB64.replaceAll(RegExp(r'\s'), '')),
+      );
+      certPath = certFile.path;
+      final profileFile = _writeSecretTemp(
+        'vymalo-prof',
+        'profile.mobileprovision',
+        base64.decode(profileB64.replaceAll(RegExp(r'\s'), '')),
+      );
+      profilePath = profileFile.path;
     }
 
     final rand = Random.secure();
-    final keychainPassword =
-        List.generate(24, (_) => rand.nextInt(16).toRadixString(16)).join();
+    final keychainPassword = List.generate(
+      24,
+      (_) => rand.nextInt(16).toRadixString(16),
+    ).join();
+
+    // Mask the runtime-generated password in GitHub Actions logs.
+    if (Platform.environment['GITHUB_ACTIONS'] == 'true') {
+      stdout.writeln('::add-mask::$keychainPassword');
+    }
 
     final config = IosBuildConfig(
       workspace: a.option('workspace')!,
       projectDir: a.option('project-dir')!,
       appId: a.option('app-id')!,
       teamId: (env['APPLE_TEAM_ID'] ?? '').trim(),
-      profileName:
-          (env['IOS_APPSTORE_PROFILE_NAME'] ?? 'Vymalo App Store').trim(),
+      profileName: (env['IOS_APPSTORE_PROFILE_NAME'] ?? 'Vymalo App Store')
+          .trim(),
       certPath: certPath,
       certPassword: (env['IOS_CERTIFICATE_PASSWORD'] ?? '').trim(),
       profilePath: profilePath,
@@ -157,18 +239,28 @@ class IosBuildCommand extends Command<void> {
     );
 
     try {
-      await StepRunner(dryRun: dryRun, verbose: _verbose(a))
-          .run(planIosBuild(config));
+      await StepRunner(
+        dryRun: dryRun,
+        verbose: _verbose(a),
+      ).run(planIosBuild(config));
     } finally {
       if (!dryRun) {
-        await Process.run('security', ['delete-keychain', keychainPath]);
-        for (final p in [
-          certPath,
-          profilePath,
-          '$keychainPath.ExportOptions.plist',
-        ]) {
-          final f = File(p);
-          if (f.existsSync()) f.deleteSync();
+        final del = await Process.run('security', [
+          'delete-keychain',
+          keychainPath,
+        ]);
+        if (del.exitCode != 0) {
+          stderr.writeln(
+            'Warning: failed to delete keychain '
+            '$keychainPath (exit ${del.exitCode}): '
+            '${(del.stderr as String).trim()}',
+          );
+        }
+        final kcDir = File(keychainPath).parent;
+        if (kcDir.existsSync()) kcDir.deleteSync(recursive: true);
+        for (final p in [certPath, profilePath]) {
+          final parent = File(p).parent;
+          if (parent.existsSync()) parent.deleteSync(recursive: true);
         }
       }
     }
@@ -178,7 +270,8 @@ class IosBuildCommand extends Command<void> {
 
   void _emitIosBuildOutputs(IosBuildConfig c) {
     final ipaDir = Directory(
-        resolveIn(resolveIn(c.workspace, c.projectDir), 'build/ios/ipa'));
+      resolveIn(resolveIn(c.workspace, c.projectDir), 'build/ios/ipa'),
+    );
     var ipa = '';
     if (ipaDir.existsSync()) {
       final hits = ipaDir
@@ -195,34 +288,56 @@ class IosBuildCommand extends Command<void> {
 class CodegenCommand extends Command<void> {
   CodegenCommand() {
     argParser
-      ..addOption('workspace',
-          help: 'Repo root the other paths resolve against.',
-          defaultsTo: Directory.current.path)
+      ..addOption(
+        'workspace',
+        help: 'Repo root the other paths resolve against.',
+        defaultsTo: Directory.current.path,
+      )
       ..addOption('project-dir', defaultsTo: 'mobile', help: 'Flutter app dir.')
-      ..addOption('api-dir',
-          defaultsTo: 'mobile/api', help: 'Generated OpenAPI client dir.')
-      ..addOption('codegen-tool-dir',
-          defaultsTo: 'mobile/tool/openapi_codegen',
-          help: 'Dir whose build_runner drives the OpenAPI Generator CLI.')
-      ..addOption('api-pubspec-template',
-          defaultsTo: '',
-          help: 'Tracked pubspec template copied to <api-dir>/pubspec.yaml. '
-              'When set, takes precedence over --sdk-floor.')
-      ..addOption('sdk-floor',
-          defaultsTo: '>=3.12.0 <4.0.0',
-          help: 'SDK constraint forced into the generated API pubspec.')
-      ..addFlag('clean',
-          defaultsTo: true,
-          help: 'Drop pubspec.lock + build_runner clean before the API build.')
-      ..addFlag('upgrade-dart-style',
-          defaultsTo: false,
-          help: 'dart pub upgrade dart_style before the API build.')
+      ..addOption(
+        'api-dir',
+        defaultsTo: 'mobile/api',
+        help: 'Generated OpenAPI client dir.',
+      )
+      ..addOption(
+        'codegen-tool-dir',
+        defaultsTo: 'mobile/tool/openapi_codegen',
+        help: 'Dir whose build_runner drives the OpenAPI Generator CLI.',
+      )
+      ..addOption(
+        'api-pubspec-template',
+        defaultsTo: '',
+        help:
+            'Tracked pubspec template copied to <api-dir>/pubspec.yaml. '
+            'When set, takes precedence over --sdk-floor.',
+      )
+      ..addOption(
+        'sdk-floor',
+        defaultsTo: '>=3.12.0 <4.0.0',
+        help: 'SDK constraint forced into the generated API pubspec.',
+      )
+      ..addFlag(
+        'clean',
+        defaultsTo: true,
+        help: 'Drop pubspec.lock + build_runner clean before the API build.',
+      )
+      ..addFlag(
+        'upgrade-dart-style',
+        defaultsTo: false,
+        help: 'dart pub upgrade dart_style before the API build.',
+      )
       ..addOption('dart', defaultsTo: 'dart')
       ..addOption('flutter', defaultsTo: 'flutter')
-      ..addFlag('verbose',
-          defaultsTo: false, help: 'Stream command output live.')
-      ..addFlag('dry-run',
-          defaultsTo: false, help: 'Print the plan without executing it.');
+      ..addFlag(
+        'verbose',
+        defaultsTo: false,
+        help: 'Stream command output live.',
+      )
+      ..addFlag(
+        'dry-run',
+        defaultsTo: false,
+        help: 'Print the plan without executing it.',
+      );
   }
 
   @override
@@ -246,8 +361,10 @@ class CodegenCommand extends Command<void> {
       dart: a.option('dart')!,
       flutter: a.option('flutter')!,
     );
-    await StepRunner(dryRun: a.flag('dry-run'), verbose: _verbose(a))
-        .run(planCodegen(config));
+    await StepRunner(
+      dryRun: a.flag('dry-run'),
+      verbose: _verbose(a),
+    ).run(planCodegen(config));
   }
 }
 
@@ -261,13 +378,21 @@ class AndroidBuildCommand extends Command<void> {
       ..addOption('workspace', defaultsTo: Directory.current.path)
       ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption('build-number', help: 'Android versionCode (--build-number).')
-      ..addOption('artifacts',
-          defaultsTo: 'both', allowed: ['apk', 'aab', 'both'])
-      ..addMultiOption('dart-define',
-          help: 'KEY=VALUE, repeatable → --dart-define=KEY=VALUE.')
+      ..addOption(
+        'artifacts',
+        defaultsTo: 'both',
+        allowed: ['apk', 'aab', 'both'],
+      )
+      ..addMultiOption(
+        'dart-define',
+        help: 'KEY=VALUE, repeatable → --dart-define=KEY=VALUE.',
+      )
       ..addOption('flutter', defaultsTo: 'flutter')
-      ..addFlag('verbose',
-          defaultsTo: false, help: 'Stream command output live.')
+      ..addFlag(
+        'verbose',
+        defaultsTo: false,
+        help: 'Stream command output live.',
+      )
       ..addFlag('dry-run', defaultsTo: false);
   }
 
@@ -287,9 +412,7 @@ class AndroidBuildCommand extends Command<void> {
     var keystorePath = '';
     if (signed) {
       final bytes = base64.decode(keystoreB64.replaceAll(RegExp(r'\s'), ''));
-      final f = File(
-          '${Directory.systemTemp.path}/vymalo-${DateTime.now().microsecondsSinceEpoch}.keystore');
-      f.writeAsBytesSync(bytes);
+      final f = _writeSecretTemp('vymalo-ks', 'signing.keystore', bytes);
       keystorePath = f.path;
     }
 
@@ -314,11 +437,22 @@ class AndroidBuildCommand extends Command<void> {
     );
 
     try {
-      await StepRunner(dryRun: a.flag('dry-run'), verbose: _verbose(a))
-          .run(planAndroidBuild(config));
+      await StepRunner(
+        dryRun: a.flag('dry-run'),
+        verbose: _verbose(a),
+      ).run(planAndroidBuild(config));
     } finally {
-      if (keystorePath.isNotEmpty && File(keystorePath).existsSync()) {
-        File(keystorePath).deleteSync();
+      if (keystorePath.isNotEmpty) {
+        final ksDir = File(keystorePath).parent;
+        if (ksDir.existsSync()) ksDir.deleteSync(recursive: true);
+        // key.properties — only written when signing; clean it even on
+        // build failure. Never touch a caller-owned file on unsigned builds.
+        final keyPropsPath = resolveIn(
+          resolveIn(config.workspace, config.projectDir),
+          'android/key.properties',
+        );
+        final keyProps = File(keyPropsPath);
+        if (keyProps.existsSync()) keyProps.deleteSync();
       }
     }
     _emitOutputs(config);
@@ -328,12 +462,16 @@ class AndroidBuildCommand extends Command<void> {
     final appDir = resolveIn(c.workspace, c.projectDir);
     final lines = <String>['signed=${c.signed}'];
     if (c.artifacts.contains(AndroidArtifact.apk)) {
-      lines.add('apk-path='
-          '${resolveIn(appDir, androidArtifactPath(AndroidArtifact.apk, signed: c.signed))}');
+      lines.add(
+        'apk-path='
+        '${resolveIn(appDir, androidArtifactPath(AndroidArtifact.apk, signed: c.signed))}',
+      );
     }
     if (c.signed && c.artifacts.contains(AndroidArtifact.aab)) {
-      lines.add('aab-path='
-          '${resolveIn(appDir, androidArtifactPath(AndroidArtifact.aab, signed: c.signed))}');
+      lines.add(
+        'aab-path='
+        '${resolveIn(appDir, androidArtifactPath(AndroidArtifact.aab, signed: c.signed))}',
+      );
     }
     _emitOutput({
       for (final l in lines)
@@ -347,24 +485,32 @@ class AndroidBuildCommand extends Command<void> {
 /// APP_STORE_CONNECT_KEY_ID / _ISSUER_ID / _API_KEY_BASE64 (base64 of the .p8).
 String _writeAscApiKeyJson() {
   final env = Platform.environment;
-  final p8 = utf8.decode(base64.decode(
-      (env['APP_STORE_CONNECT_API_KEY_BASE64'] ?? '')
-          .replaceAll(RegExp(r'\s'), '')));
-  final path =
-      '${Directory.systemTemp.path}/asc-${DateTime.now().microsecondsSinceEpoch}.json';
-  File(path).writeAsStringSync(jsonEncode({
-    'key_id': (env['APP_STORE_CONNECT_KEY_ID'] ?? '').trim(),
-    'issuer_id': (env['APP_STORE_CONNECT_ISSUER_ID'] ?? '').trim(),
-    'key': p8,
-    'in_house': false,
-  }));
-  return path;
+  final p8 = utf8.decode(
+    base64.decode(
+      (env['APP_STORE_CONNECT_API_KEY_BASE64'] ?? '').replaceAll(
+        RegExp(r'\s'),
+        '',
+      ),
+    ),
+  );
+  final f = _writeSecretText(
+    'asc-key',
+    'key.json',
+    jsonEncode({
+      'key_id': (env['APP_STORE_CONNECT_KEY_ID'] ?? '').trim(),
+      'issuer_id': (env['APP_STORE_CONNECT_ISSUER_ID'] ?? '').trim(),
+      'key': p8,
+      'in_house': false,
+    }),
+  );
+  return f.path;
 }
 
 /// Find the first built `.ipa` under `<workspace>/<projectDir>/build/ios/ipa`.
 String _findIpa(String workspace, String projectDir) {
-  final dir =
-      Directory(resolveIn(resolveIn(workspace, projectDir), 'build/ios/ipa'));
+  final dir = Directory(
+    resolveIn(resolveIn(workspace, projectDir), 'build/ios/ipa'),
+  );
   if (!dir.existsSync()) return '';
   final hits = dir
       .listSync(recursive: true)
@@ -377,9 +523,10 @@ String _findIpa(String workspace, String projectDir) {
 String _pubspecVersion(String workspace, String projectDir) {
   final f = File(resolveIn(resolveIn(workspace, projectDir), 'pubspec.yaml'));
   if (!f.existsSync()) return '';
-  return RegExp(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)', multiLine: true)
-          .firstMatch(f.readAsStringSync())
-          ?.group(1) ??
+  return RegExp(
+        r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)',
+        multiLine: true,
+      ).firstMatch(f.readAsStringSync())?.group(1) ??
       '';
 }
 
@@ -408,7 +555,8 @@ class TestflightSubmitCommand extends Command<void> {
     final dryRun = a.flag('dry-run');
     final ws = a.option('workspace')!;
     final apiKey = dryRun ? '<asc-key.json>' : _writeAscApiKeyJson();
-    final ipa = a.option('ipa') ??
+    final ipa =
+        a.option('ipa') ??
         (dryRun
             ? '<build/ios/ipa/app.ipa>'
             : _findIpa(ws, a.option('project-dir')!));
@@ -423,10 +571,15 @@ class TestflightSubmitCommand extends Command<void> {
       fastlane: a.option('fastlane')!,
     );
     try {
-      await StepRunner(dryRun: dryRun, verbose: _verbose(a))
-          .run(planTestflightSubmit(config));
+      await StepRunner(
+        dryRun: dryRun,
+        verbose: _verbose(a),
+      ).run(planTestflightSubmit(config));
     } finally {
-      if (!dryRun && File(apiKey).existsSync()) File(apiKey).deleteSync();
+      if (!dryRun) {
+        final akDir = File(apiKey).parent;
+        if (akDir.existsSync()) akDir.deleteSync(recursive: true);
+      }
     }
   }
 }
@@ -440,8 +593,10 @@ class AppStoreSubmitCommand extends Command<void> {
       ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption('ipa', help: 'IPA path. Default: first under build/ios/ipa.')
       ..addOption('app-version', help: 'Marketing x.y.z. Default: pubspec.')
-      ..addOption('screenshots-path',
-          help: 'Screenshots dir (screenshots mode).')
+      ..addOption(
+        'screenshots-path',
+        help: 'Screenshots dir (screenshots mode).',
+      )
       ..addOption('fastlane', defaultsTo: 'fastlane')
       ..addFlag('submit-for-review', defaultsTo: false)
       ..addFlag('skip-binary-upload', defaultsTo: false)
@@ -466,17 +621,19 @@ class AppStoreSubmitCommand extends Command<void> {
     final skipBinary = a.flag('skip-binary-upload');
 
     final apiKey = dryRun ? '<asc-key.json>' : _writeAscApiKeyJson();
-    final version = a.option('app-version') ??
+    final version =
+        a.option('app-version') ??
         (dryRun ? '<x.y.z>' : _pubspecVersion(ws, projectDir));
     if (!dryRun && version.isEmpty) {
       throw UsageException(
-          'Could not resolve app-version (pass --app-version or set pubspec version:).',
-          usage);
+        'Could not resolve app-version (pass --app-version or set pubspec version:).',
+        usage,
+      );
     }
     final ipa = skipBinary
         ? null
         : (a.option('ipa') ??
-            (dryRun ? '<build/ios/ipa/app.ipa>' : _findIpa(ws, projectDir)));
+              (dryRun ? '<build/ios/ipa/app.ipa>' : _findIpa(ws, projectDir)));
     if (!dryRun && !skipBinary && (ipa == null || ipa.isEmpty)) {
       throw UsageException('No IPA found under build/ios/ipa/.', usage);
     }
@@ -494,17 +651,24 @@ class AppStoreSubmitCommand extends Command<void> {
       fastlane: a.option('fastlane')!,
     );
     try {
-      await StepRunner(dryRun: dryRun, verbose: _verbose(a))
-          .run(planAppStoreSubmit(config));
+      await StepRunner(
+        dryRun: dryRun,
+        verbose: _verbose(a),
+      ).run(planAppStoreSubmit(config));
     } finally {
-      if (!dryRun && File(apiKey).existsSync()) File(apiKey).deleteSync();
+      if (!dryRun) {
+        final akDir = File(apiKey).parent;
+        if (akDir.existsSync()) akDir.deleteSync(recursive: true);
+      }
     }
   }
 }
 
 /// Append `name=value` pairs to $GITHUB_OUTPUT (or print them locally).
 void _emitOutput(Map<String, String> outputs) {
-  final body = outputs.entries.map((e) => '${e.key}=${e.value}').join('\n');
+  final body = outputs.entries
+      .map((e) => '${e.key}=${e.value.replaceAll('\n', '\\n')}')
+      .join('\n');
   final outFile = Platform.environment['GITHUB_OUTPUT'];
   if (outFile != null && outFile.isNotEmpty) {
     File(outFile).writeAsStringSync('$body\n', mode: FileMode.append);
@@ -524,9 +688,11 @@ class PlaySubmitCommand extends Command<void> {
       ..addOption('aab', mandatory: true, help: 'Path to the .aab to upload.')
       ..addOption('package-name', mandatory: true)
       ..addOption('track', defaultsTo: 'internal')
-      ..addOption('release-status',
-          defaultsTo: 'completed',
-          allowed: ['completed', 'draft', 'halted', 'inProgress'])
+      ..addOption(
+        'release-status',
+        defaultsTo: 'completed',
+        allowed: ['completed', 'draft', 'halted', 'inProgress'],
+      )
       ..addOption('rollout', help: 'Staged-rollout fraction, e.g. 0.2.')
       ..addFlag('skip-upload-apk', defaultsTo: true)
       ..addFlag('skip-upload-metadata', defaultsTo: true)
@@ -553,14 +719,14 @@ class PlaySubmitCommand extends Command<void> {
     final plain = env['GOOGLE_PLAY_SERVICE_ACCOUNT_JSON'] ?? '';
     if (b64.isEmpty && plain.isEmpty) {
       throw UsageException(
-          'Set GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 (or _JSON).', usage);
+        'Set GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 (or _JSON).',
+        usage,
+      );
     }
     final json = b64.isNotEmpty
         ? utf8.decode(base64.decode(b64.replaceAll(RegExp(r'\s'), '')))
         : plain;
-    final keyFile = File('${Directory.systemTemp.path}/'
-        'play-${DateTime.now().microsecondsSinceEpoch}.json');
-    keyFile.writeAsStringSync(json);
+    final keyFile = _writeSecretText('play-key', 'service-account.json', json);
 
     final config = PlaySubmitConfig(
       aabPath: a.option('aab')!,
@@ -579,10 +745,13 @@ class PlaySubmitCommand extends Command<void> {
     );
 
     try {
-      await StepRunner(dryRun: a.flag('dry-run'), verbose: _verbose(a))
-          .run(planPlaySubmit(config));
+      await StepRunner(
+        dryRun: a.flag('dry-run'),
+        verbose: _verbose(a),
+      ).run(planPlaySubmit(config));
     } finally {
-      if (keyFile.existsSync()) keyFile.deleteSync();
+      final ksDir = keyFile.parent;
+      if (ksDir.existsSync()) ksDir.deleteSync(recursive: true);
     }
   }
 }
@@ -595,11 +764,17 @@ class S3UploadCommand extends Command<void> {
       ..addOption('file', mandatory: true)
       ..addOption('bucket', mandatory: true)
       ..addOption('key', mandatory: true)
-      ..addOption('endpoint',
-          defaultsTo: '', help: 'S3-compatible endpoint URL (e.g. MinIO).')
+      ..addOption(
+        'endpoint',
+        defaultsTo: '',
+        help: 'S3-compatible endpoint URL (e.g. MinIO).',
+      )
       ..addOption('expires-in', defaultsTo: '604800')
-      ..addFlag('make-bucket',
-          defaultsTo: true, help: 'Create the bucket if it does not exist.')
+      ..addFlag(
+        'make-bucket',
+        defaultsTo: true,
+        help: 'Create the bucket if it does not exist.',
+      )
       ..addOption('aws', defaultsTo: 'aws')
       ..addFlag('verbose', defaultsTo: false)
       ..addFlag('dry-run', defaultsTo: false);
@@ -631,11 +806,15 @@ class S3UploadCommand extends Command<void> {
         'head-bucket',
         '--bucket',
         config.bucket,
-        ...endpointFlag(config)
+        ...endpointFlag(config),
       ]);
       if (head.exitCode != 0) {
-        final mb = await Process.run(config.aws,
-            ['s3', 'mb', 's3://${config.bucket}', ...endpointFlag(config)]);
+        final mb = await Process.run(config.aws, [
+          's3',
+          'mb',
+          's3://${config.bucket}',
+          ...endpointFlag(config),
+        ]);
         if (mb.exitCode != 0) {
           stderr.writeln(mb.stderr);
           exit(1);
@@ -643,8 +822,10 @@ class S3UploadCommand extends Command<void> {
       }
     }
 
-    await StepRunner(dryRun: dryRun, verbose: _verbose(a))
-        .run(planS3Upload(config));
+    await StepRunner(
+      dryRun: dryRun,
+      verbose: _verbose(a),
+    ).run(planS3Upload(config));
 
     if (dryRun) {
       _emitOutput({'s3-key': config.key, 's3-url': '<presigned-url>'});
@@ -655,7 +836,9 @@ class S3UploadCommand extends Command<void> {
       stderr.writeln(presign.stderr);
       exit(1);
     }
-    _emitOutput(
-        {'s3-key': config.key, 's3-url': (presign.stdout as String).trim()});
+    _emitOutput({
+      's3-key': config.key,
+      's3-url': (presign.stdout as String).trim(),
+    });
   }
 }

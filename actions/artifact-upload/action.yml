@@ -48,17 +48,20 @@ runs:
   steps:
     - id: meta
       shell: bash
+      env:
+        INPUT_FILE: ${{ inputs.file }}
+        INPUT_NAME: ${{ inputs.name }}
       run: |
-        file="${{ inputs.file }}"
+        file="$INPUT_FILE"
         abs="$(cd "$(dirname "$file")" 2>/dev/null && pwd)/$(basename "$file")" || abs="$file"
-        name="${{ inputs.name }}"
+        name="$INPUT_NAME"
         [ -z "$name" ] && name="$(basename "$file")"
         echo "file-abs=$abs" >> "$GITHUB_OUTPUT"
         echo "name=$name" >> "$GITHUB_OUTPUT"
 
     - name: Upload to GitHub Artifacts
       if: ${{ inputs.to-gh-artifacts == 'true' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ steps.meta.outputs.name }}
         path: ${{ inputs.file }}
@@ -88,13 +91,19 @@ runs:
       if: ${{ inputs.to-s3 == 'true' }}
       shell: bash
       working-directory: ${{ github.action_path }}/../..
+      env:
+        INPUT_S3_BUCKET: ${{ inputs.s3-bucket }}
+        INPUT_S3_KEY: ${{ inputs.s3-key }}
+        INPUT_S3_ENDPOINT: ${{ inputs.s3-endpoint }}
+        INPUT_S3_EXPIRES_IN: ${{ inputs.s3-expires-in }}
+        INPUT_S3_MAKE_BUCKET: ${{ inputs.s3-make-bucket }}
       run: |
         set -euo pipefail
         dart pub get
         dart run bin/flutter_tools.dart s3-upload \
           --file "${{ steps.meta.outputs.file-abs }}" \
-          --bucket "${{ inputs.s3-bucket }}" \
-          --key "${{ inputs.s3-key }}" \
-          --endpoint "${{ inputs.s3-endpoint }}" \
-          --expires-in "${{ inputs.s3-expires-in }}" \
-          --${{ inputs.s3-make-bucket == 'true' && 'make-bucket' || 'no-make-bucket' }}
+          --bucket "$INPUT_S3_BUCKET" \
+          --key "$INPUT_S3_KEY" \
+          --endpoint "$INPUT_S3_ENDPOINT" \
+          --expires-in "$INPUT_S3_EXPIRES_IN" \
+          --$([ "$INPUT_S3_MAKE_BUCKET" = 'true' ] && echo 'make-bucket' || echo 'no-make-bucket')

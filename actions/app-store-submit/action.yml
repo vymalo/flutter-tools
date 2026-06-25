@@ -43,7 +43,7 @@ runs:
     # one when absent. No-op when fastlane is already on PATH.
     - name: Ensure fastlane
       shell: bash
-      run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document
+      run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document --version '~>2.230'
 
     - shell: bash
       working-directory: ${{ github.action_path }}/../..
@@ -51,19 +51,28 @@ runs:
         APP_STORE_CONNECT_KEY_ID: ${{ inputs.asc-key-id }}
         APP_STORE_CONNECT_ISSUER_ID: ${{ inputs.asc-issuer-id }}
         APP_STORE_CONNECT_API_KEY_BASE64: ${{ inputs.asc-api-key-base64 }}
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_SUBMIT_FOR_REVIEW: ${{ inputs.submit-for-review }}
+        INPUT_SKIP_BINARY_UPLOAD: ${{ inputs.skip-binary-upload }}
+        INPUT_SKIP_SCREENSHOTS: ${{ inputs.skip-screenshots }}
+        INPUT_OVERWRITE_SCREENSHOTS: ${{ inputs.overwrite-screenshots }}
+        INPUT_IPA: ${{ inputs.ipa }}
+        INPUT_APP_VERSION: ${{ inputs.app-version }}
+        INPUT_SCREENSHOTS_PATH: ${{ inputs.screenshots-path }}
       run: |
         set -euo pipefail
         dart pub get
         args=(
           app-store-submit
-          --workspace "${{ inputs.workspace }}"
-          --project-dir "${{ inputs.project-dir }}"
-          --${{ inputs.submit-for-review == 'true' && 'submit-for-review' || 'no-submit-for-review' }}
-          --${{ inputs.skip-binary-upload == 'true' && 'skip-binary-upload' || 'no-skip-binary-upload' }}
-          --${{ inputs.skip-screenshots == 'true' && 'skip-screenshots' || 'no-skip-screenshots' }}
-          --${{ inputs.overwrite-screenshots == 'true' && 'overwrite-screenshots' || 'no-overwrite-screenshots' }}
+          --workspace "$INPUT_WORKSPACE"
+          --project-dir "$INPUT_PROJECT_DIR"
+          --$([ "$INPUT_SUBMIT_FOR_REVIEW" = 'true' ] && echo 'submit-for-review' || echo 'no-submit-for-review')
+          --$([ "$INPUT_SKIP_BINARY_UPLOAD" = 'true' ] && echo 'skip-binary-upload' || echo 'no-skip-binary-upload')
+          --$([ "$INPUT_SKIP_SCREENSHOTS" = 'true' ] && echo 'skip-screenshots' || echo 'no-skip-screenshots')
+          --$([ "$INPUT_OVERWRITE_SCREENSHOTS" = 'true' ] && echo 'overwrite-screenshots' || echo 'no-overwrite-screenshots')
         )
-        [ -n "${{ inputs.ipa }}" ]              && args+=(--ipa "${{ inputs.ipa }}")
-        [ -n "${{ inputs.app-version }}" ]      && args+=(--app-version "${{ inputs.app-version }}")
-        [ -n "${{ inputs.screenshots-path }}" ] && args+=(--screenshots-path "${{ inputs.screenshots-path }}")
+        [ -n "$INPUT_IPA" ]              && args+=(--ipa "$INPUT_IPA")
+        [ -n "$INPUT_APP_VERSION" ]      && args+=(--app-version "$INPUT_APP_VERSION")
+        [ -n "$INPUT_SCREENSHOTS_PATH" ] && args+=(--screenshots-path "$INPUT_SCREENSHOTS_PATH")
         dart run bin/flutter_tools.dart "${args[@]}"

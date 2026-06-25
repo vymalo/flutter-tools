@@ -48,9 +48,10 @@ class AndroidBuildConfig {
 /// The standard Flutter output path for each artifact, relative to the app dir.
 String androidArtifactPath(AndroidArtifact a, {required bool signed}) =>
     switch (a) {
-      AndroidArtifact.apk => signed
-          ? 'build/app/outputs/flutter-apk/app-release.apk'
-          : 'build/app/outputs/flutter-apk/app-debug.apk',
+      AndroidArtifact.apk =>
+        signed
+            ? 'build/app/outputs/flutter-apk/app-release.apk'
+            : 'build/app/outputs/flutter-apk/app-debug.apk',
       AndroidArtifact.aab => 'build/app/outputs/bundle/release/app-release.aab',
     };
 
@@ -60,18 +61,24 @@ List<Step> planAndroidBuild(AndroidBuildConfig c) {
   final appDir = resolveIn(c.workspace, c.projectDir);
   final keyProps = resolveIn(appDir, 'android/key.properties');
   final defines = [for (final d in c.dartDefines) '--dart-define=$d'];
-  final buildNumber =
-      c.buildNumber == null ? <String>[] : ['--build-number=${c.buildNumber}'];
+  final buildNumber = c.buildNumber == null
+      ? <String>[]
+      : ['--build-number=${c.buildNumber}'];
 
-  List<String> buildArgs(String sub, String mode) =>
-      [sub, mode, ...buildNumber, ...defines];
+  List<String> buildArgs(String sub, String mode) => [
+    sub,
+    mode,
+    ...buildNumber,
+    ...defines,
+  ];
 
   return [
     if (c.signed)
       WriteFileStep(
         label: 'Write android/key.properties',
         path: keyProps,
-        contents: 'storeFile=${c.keystorePath}\n'
+        contents:
+            'storeFile=${c.keystorePath}\n'
             'storePassword=${c.keystorePassword}\n'
             'keyAlias=${c.keyAlias}\n'
             'keyPassword=${c.keyPassword}\n',
@@ -83,7 +90,7 @@ List<Step> planAndroidBuild(AndroidBuildConfig c) {
         executable: c.flutter,
         args: [
           'build',
-          ...buildArgs('apk', c.signed ? '--release' : '--debug')
+          ...buildArgs('apk', c.signed ? '--release' : '--debug'),
         ],
         workingDir: appDir,
       ),

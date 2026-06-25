@@ -77,7 +77,8 @@ List<Step> planAppStoreSubmit(AppStoreSubmitConfig c) {
 
   return [
     RunStep(
-      label: 'fastlane deliver → App Store'
+      label:
+          'fastlane deliver → App Store'
           '${c.submitForReview ? ' (submit for review)' : ''}',
       executable: c.fastlane,
       args: args,

@@ -21,6 +21,7 @@ class RunStep extends Step {
     required this.args,
     required this.workingDir,
     this.allowFailure = false,
+    this.secretArgIndices = const {},
   });
 
   final String executable;
@@ -32,9 +33,23 @@ class RunStep extends Step {
   /// intermediates (some versions 404 or are already present).
   final bool allowFailure;
 
+  /// Indices into [args] that hold secrets and must be redacted in logs.
+  final Set<int> secretArgIndices;
+
+  /// Build a log-safe command representation: redact secret args.
+  String toLogString() {
+    if (secretArgIndices.isEmpty) {
+      return '$executable ${args.join(' ')}';
+    }
+    final redacted = <String>[];
+    for (var i = 0; i < args.length; i++) {
+      redacted.add(secretArgIndices.contains(i) ? '***' : args[i]);
+    }
+    return '$executable ${redacted.join(' ')}';
+  }
+
   @override
-  String toString() =>
-      'RunStep($label: `$executable ${args.join(' ')}` in $workingDir)';
+  String toString() => 'RunStep($label: `${toLogString()}` in $workingDir)';
 }
 
 /// Write [contents] to [path], creating parent dirs. Used for the generated
@@ -119,7 +134,8 @@ class PatchVersionStep extends Step {
   final String? marketingVersion;
 
   @override
-  String toString() => 'PatchVersionStep($label: $path -> '
+  String toString() =>
+      'PatchVersionStep($label: $path -> '
       '${marketingVersion ?? '<keep>'}+$buildNumber)';
 }
 
@@ -137,8 +153,12 @@ class StepFailure implements Exception {
 /// Resolve a possibly-relative [path] against [root] into an absolute path.
 String resolveIn(String root, String path) {
   if (path.isEmpty) return root;
-  final p = path;
-  return File(p).isAbsolute ? p : _join(root, p);
+  if (File(path).isAbsolute) return path;
+  final parts = path.split(RegExp(r'[/\\]'));
+  if (parts.contains('..')) {
+    throw ArgumentError('Path traversal ("..") not allowed: $path');
+  }
+  return _join(root, path);
 }
 
 String _join(String a, String b) {

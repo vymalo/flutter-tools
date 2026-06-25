@@ -38,27 +38,20 @@ String s3Uri(S3UploadConfig c) => 's3://${c.bucket}/${c.key}';
 /// `aws s3 presign` are handled in the command — the former needs conditional
 /// logic, the latter needs to capture stdout (the URL).
 List<Step> planS3Upload(S3UploadConfig c) => [
-      RunStep(
-        label: 'aws s3 cp → ${s3Uri(c)}',
-        executable: c.aws,
-        args: [
-          's3',
-          'cp',
-          c.file,
-          s3Uri(c),
-          ...endpointFlag(c),
-          '--no-progress',
-        ],
-        workingDir: '.',
-      ),
-    ];
+  RunStep(
+    label: 'aws s3 cp → ${s3Uri(c)}',
+    executable: c.aws,
+    args: ['s3', 'cp', c.file, s3Uri(c), ...endpointFlag(c), '--no-progress'],
+    workingDir: '.',
+  ),
+];
 
 /// `aws s3 presign` args to fetch the shareable URL.
 List<String> presignArgs(S3UploadConfig c) => [
-      's3',
-      'presign',
-      s3Uri(c),
-      '--expires-in',
-      '${c.expiresIn}',
-      ...endpointFlag(c),
-    ];
+  's3',
+  'presign',
+  s3Uri(c),
+  '--expires-in',
+  '${c.expiresIn}',
+  ...endpointFlag(c),
+];
