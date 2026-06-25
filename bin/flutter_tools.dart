@@ -1056,11 +1056,16 @@ Future<int> _runLive(
   List<String> args, {
   String? cwd,
   Duration? timeout,
+  Map<String, String>? extraEnv,
 }) async {
   final p = await Process.start(
     exe,
     args,
     workingDirectory: cwd,
+    // Merge (don't replace) the inherited env when overrides are supplied.
+    environment: extraEnv == null
+        ? null
+        : {...Platform.environment, ...extraEnv},
     mode: ProcessStartMode.inheritStdio,
   );
   if (timeout == null) return p.exitCode;
@@ -1081,18 +1086,24 @@ Future<void> _driveScreenshots(
   String device,
   List<String> defines, {
   required String cwd,
+  Map<String, String>? extraEnv,
 }) async {
   for (var attempt = 1; ; attempt++) {
     // Run from the app dir — driver/target are relative paths, and the driver
     // shim writes PNGs to <cwd>/screenshots/ (which the collector reads).
-    final rc = await _runLive(flutter, [
-      'drive',
-      '--driver=$driver',
-      '--target=$target',
-      '-d',
-      device,
-      ...defines,
-    ], cwd: cwd);
+    final rc = await _runLive(
+      flutter,
+      [
+        'drive',
+        '--driver=$driver',
+        '--target=$target',
+        '-d',
+        device,
+        ...defines,
+      ],
+      cwd: cwd,
+      extraEnv: extraEnv,
+    );
     if (rc == 0) return;
     if (attempt >= 2) throw StateError('flutter drive failed (exit $rc)');
     stdout.writeln('⚠ flutter drive failed (exit $rc); retrying once…');
@@ -1238,6 +1249,11 @@ Future<int> _captureAndroid({
         'emulator-5554',
         defines,
         cwd: appRoot,
+        // flutter needs the SDK location to discover the running emulator.
+        extraEnv: {
+          'ANDROID_HOME': androidHome,
+          'ANDROID_SDK_ROOT': androidHome,
+        },
       );
       final n = _collectScreenshots(
         appRoot,
