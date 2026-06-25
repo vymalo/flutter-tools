@@ -30,6 +30,7 @@ licensed; use it for yours.
 | [`testflight-submit`](actions/testflight-submit) | Upload an IPA to TestFlight (Fastlane pilot, ASC API key) |
 | [`app-store-submit`](actions/app-store-submit) | Upload IPA and/or screenshots to App Store Connect, optionally submit for review (Fastlane deliver) |
 | [`artifact-upload`](actions/artifact-upload) | Upload to GitHub Artifacts **and/or** S3/MinIO (+ presigned URL) |
+| [`release-cut`](actions/release-cut) | Cut a release with **no PR permission / no PAT**: conventional-commits semver → tag → GitHub Release (auto-notes) |
 
 ## Why it's built this way
 

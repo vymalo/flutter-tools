@@ -1,0 +1,65 @@
+name: 'Release cut (Vymalo)'
+description: >-
+  Cut a release with NO PR-create permission and NO PAT. Computes the next semver
+  from conventional commits since the last `<tag-prefix>*` tag (or an explicit
+  bump), then tags it + creates a GitHub Release with auto-generated notes. Needs
+  only `contents: write`. The semver/bump logic is a unit-tested Dart command; the
+  tag + release is `softprops/action-gh-release`. Requires the repo checked out
+  with full history + tags (actions/checkout with `fetch-depth: 0`).
+
+inputs:
+  workspace:
+    description: 'Repo root (git history + tags must be present).'
+    default: ${{ github.workspace }}
+  project-dir:
+    description: 'Path scoping the conventional-commit scan + the pubspec fallback.'
+    default: 'mobile'
+  tag-prefix:
+    description: 'Tag namespace, e.g. mobile-v → mobile-v1.2.3.'
+    default: 'mobile-v'
+  bump:
+    description: 'auto (infer from commits) | patch | minor | major.'
+    default: 'auto'
+  title-prefix:
+    description: 'GitHub Release title prefix (→ "<prefix> x.y.z").'
+    default: 'Mobile'
+  target:
+    description: 'Commitish to tag.'
+    default: ${{ github.sha }}
+
+outputs:
+  version:
+    description: 'The cut marketing version x.y.z.'
+    value: ${{ steps.compute.outputs.version }}
+  tag:
+    description: 'The created tag (<tag-prefix>x.y.z).'
+    value: ${{ steps.compute.outputs.tag }}
+  bump:
+    description: 'The bump level applied (major | minor | patch).'
+    value: ${{ steps.compute.outputs.bump }}
+
+runs:
+  using: composite
+  steps:
+    - id: compute
+      shell: bash
+      working-directory: ${{ github.action_path }}/../..
+      run: |
+        set -euo pipefail
+        dart pub get
+        dart run bin/flutter_tools.dart release-cut \
+          --workspace "${{ inputs.workspace }}" \
+          --project-dir "${{ inputs.project-dir }}" \
+          --tag-prefix "${{ inputs.tag-prefix }}" \
+          --bump "${{ inputs.bump }}"
+
+    # Tag + GitHub Release with auto-notes — creates the tag from `target`, so it
+    # needs only contents: write (no PR, no PAT). A GITHUB_TOKEN-created tag does
+    # not start other `push:` runs, so call the build from the SAME run if needed.
+    - name: Tag + GitHub Release (auto-notes)
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.compute.outputs.tag }}
+        target_commitish: ${{ inputs.target }}
+        name: ${{ inputs.title-prefix }} ${{ steps.compute.outputs.version }}
+        generate_release_notes: true

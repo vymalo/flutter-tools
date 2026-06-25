@@ -38,7 +38,8 @@ Future<void> main(List<String> args) async {
         ..addCommand(TestflightSubmitCommand())
         ..addCommand(AppStoreSubmitCommand())
         ..addCommand(PlaySubmitCommand())
-        ..addCommand(S3UploadCommand());
+        ..addCommand(S3UploadCommand())
+        ..addCommand(ReleaseCutCommand());
 
   try {
     await runner.run(args);
@@ -839,6 +840,81 @@ class S3UploadCommand extends Command<void> {
     _emitOutput({
       's3-key': config.key,
       's3-url': (presign.stdout as String).trim(),
+    });
+  }
+}
+
+/// `flutter-tools release-cut` — compute the next release version + tag from
+/// conventional commits since the last `<tag-prefix>*` tag (or an explicit bump).
+/// Read-only (git reads + pubspec); the action does the tag + GitHub Release.
+class ReleaseCutCommand extends Command<void> {
+  ReleaseCutCommand() {
+    argParser
+      ..addOption('workspace', defaultsTo: Directory.current.path)
+      ..addOption('project-dir', defaultsTo: 'mobile')
+      ..addOption('tag-prefix', defaultsTo: 'mobile-v')
+      ..addOption(
+        'bump',
+        defaultsTo: 'auto',
+        allowed: ['auto', 'patch', 'minor', 'major'],
+        help: 'auto = infer from conventional commits.',
+      );
+  }
+
+  @override
+  final String name = 'release-cut';
+  @override
+  final String description =
+      'Compute the next release version + tag from '
+      'conventional commits since the last tag.';
+
+  @override
+  Future<void> run() async {
+    final a = argResults!;
+    final ws = a.option('workspace')!;
+    final projectDir = a.option('project-dir')!;
+    final prefix = a.option('tag-prefix')!;
+
+    String git(List<String> args) {
+      final r = Process.runSync('git', args, workingDirectory: ws);
+      return r.exitCode == 0 ? (r.stdout as String) : '';
+    }
+
+    final latestTag = git(['tag', '-l', '$prefix*', '--sort=-v:refname'])
+        .split('\n')
+        .map((l) => l.trim())
+        .firstWhere((l) => l.isNotEmpty, orElse: () => '');
+
+    final logArgs = <String>['log', '--format=%s%n%b'];
+    if (latestTag.isNotEmpty) logArgs.add('$latestTag..HEAD');
+    if (projectDir != '.') logArgs.addAll(['--', '$projectDir/']);
+    final commitLog = git(logArgs);
+
+    final pubspec = File('$ws/$projectDir/pubspec.yaml');
+    final pubspecVersion = pubspec.existsSync()
+        ? (RegExp(
+                r'^version:\s*(\S+)',
+                multiLine: true,
+              ).firstMatch(pubspec.readAsStringSync())?.group(1) ??
+              '0.0.0')
+        : '0.0.0';
+
+    final result = computeRelease(
+      tagPrefix: prefix,
+      latestTag: latestTag.isEmpty ? null : latestTag,
+      pubspecVersion: pubspecVersion,
+      bumpInput: a.option('bump')!,
+      commitLog: commitLog,
+    );
+    stdout.writeln(
+      'Baseline '
+      '${latestTag.isEmpty ? 'pubspec $pubspecVersion' : latestTag} + '
+      '${result.bump.name} → ${result.version} (${result.tag})',
+    );
+    _emitOutput({
+      'version': result.version,
+      'tag': result.tag,
+      'bump': result.bump.name,
     });
   }
 }
