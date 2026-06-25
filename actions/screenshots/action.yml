@@ -43,24 +43,38 @@ runs:
   steps:
     - shell: bash
       working-directory: ${{ github.action_path }}/../..
+      # Route inputs through env (never interpolated into the script) so a
+      # user-controlled value can't break out and run shell — the #11 pattern.
+      env:
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
+        INPUT_PLATFORM: ${{ inputs.platform }}
+        INPUT_DRIVER: ${{ inputs.driver }}
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_LOCALE: ${{ inputs.locale }}
+        INPUT_SYSIMG: ${{ inputs.sysimg }}
+        INPUT_ANDROID_HOME: ${{ inputs.android-home }}
+        INPUT_ANDROID_DEVICES: ${{ inputs.android-devices }}
+        INPUT_IOS_DEVICES: ${{ inputs.ios-devices }}
+        INPUT_DART_DEFINES: ${{ inputs.dart-defines }}
       run: |
         set -euo pipefail
         dart pub get
         args=(
           screenshots
-          --workspace "${{ inputs.workspace }}"
-          --project-dir "${{ inputs.project-dir }}"
-          --platform "${{ inputs.platform }}"
-          --driver "${{ inputs.driver }}"
-          --target "${{ inputs.target }}"
-          --locale "${{ inputs.locale }}"
-          --sysimg "${{ inputs.sysimg }}"
+          --workspace "$INPUT_WORKSPACE"
+          --project-dir "$INPUT_PROJECT_DIR"
+          --platform "$INPUT_PLATFORM"
+          --driver "$INPUT_DRIVER"
+          --target "$INPUT_TARGET"
+          --locale "$INPUT_LOCALE"
+          --sysimg "$INPUT_SYSIMG"
         )
-        [ -n "${{ inputs.android-home }}" ]    && args+=(--android-home "${{ inputs.android-home }}")
-        [ -n "${{ inputs.android-devices }}" ] && args+=(--android-devices "${{ inputs.android-devices }}")
-        [ -n "${{ inputs.ios-devices }}" ]     && args+=(--ios-devices "${{ inputs.ios-devices }}")
+        [ -n "$INPUT_ANDROID_HOME" ]    && args+=(--android-home "$INPUT_ANDROID_HOME")
+        [ -n "$INPUT_ANDROID_DEVICES" ] && args+=(--android-devices "$INPUT_ANDROID_DEVICES")
+        [ -n "$INPUT_IOS_DEVICES" ]     && args+=(--ios-devices "$INPUT_IOS_DEVICES")
         # One --dart-define per non-empty line.
         while IFS= read -r line; do
           [ -n "$line" ] && args+=(--dart-define "$line")
-        done <<< "${{ inputs.dart-defines }}"
+        done <<< "$INPUT_DART_DEFINES"
         dart run bin/flutter_tools.dart "${args[@]}"

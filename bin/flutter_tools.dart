@@ -1134,11 +1134,26 @@ Future<void> _captureAndroid({
   for (final d in devices) {
     if (!existing.contains(d.avd)) {
       stdout.writeln("AVD '${d.avd}' not found — creating it (${d.profile})…");
-      final created = Process.runSync('sh', [
-        '-c',
-        'echo no | "$avdmanager" create avd -n "${d.avd}" -k "$sysimg" -d "${d.profile}" --force',
+      // Invoke avdmanager directly (no `sh -c` interpolation of the device
+      // matrix → no shell-injection surface); answer its prompt via stdin.
+      final create = await Process.start(avdmanager, [
+        'create',
+        'avd',
+        '-n',
+        d.avd,
+        '-k',
+        sysimg,
+        '-d',
+        d.profile,
+        '--force',
       ]);
-      if (created.exitCode != 0) {
+      create.stdin.writeln('no');
+      await create.stdin.close();
+      await Future.wait([
+        create.stdout.drain<void>(),
+        create.stderr.drain<void>(),
+      ]);
+      if (await create.exitCode != 0) {
         stdout.writeln(
           "Skipping ${d.imagesClass}: could not create AVD '${d.avd}'.",
         );
@@ -1162,13 +1177,19 @@ Future<void> _captureAndroid({
     ], mode: ProcessStartMode.detached);
     emu.exitCode.ignore();
     try {
+      // Target the serial explicitly (one emulator at a time → emulator-5554),
+      // so a stray device on the host can't confuse wait-for-device / getprop.
       final wfd = await _runLive(adb, [
+        '-s',
+        'emulator-5554',
         'wait-for-device',
       ], timeout: const Duration(seconds: 180));
       if (wfd != 0) throw StateError('adb wait-for-device timed out');
       final deadline = DateTime.now().add(const Duration(seconds: 240));
       while (true) {
         final booted = Process.runSync(adb, [
+          '-s',
+          'emulator-5554',
           'shell',
           'getprop',
           'sys.boot_completed',
@@ -1177,7 +1198,7 @@ Future<void> _captureAndroid({
         if (DateTime.now().isAfter(deadline)) {
           throw StateError('emulator never reported boot_completed');
         }
-        sleep(const Duration(seconds: 2));
+        await Future<void>.delayed(const Duration(seconds: 2));
       }
       await _driveScreenshots(
         flutter,
@@ -1197,11 +1218,10 @@ Future<void> _captureAndroid({
       stdout.writeln('Skipping ${d.imagesClass}: $e');
     } finally {
       try {
-        await _runLive(adb, ['emu', 'kill']);
+        await _runLive(adb, ['-s', 'emulator-5554', 'emu', 'kill']);
       } catch (_) {}
-      sleep(
-        const Duration(seconds: 4),
-      ); // release the port before the next boot
+      // Release the port before the next boot.
+      await Future<void>.delayed(const Duration(seconds: 4));
     }
   }
 
