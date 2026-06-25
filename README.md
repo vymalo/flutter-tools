@@ -31,6 +31,7 @@ licensed; use it for yours.
 | [`app-store-submit`](actions/app-store-submit) | Upload IPA and/or screenshots to App Store Connect, optionally submit for review (Fastlane deliver) |
 | [`artifact-upload`](actions/artifact-upload) | Upload to GitHub Artifacts **and/or** S3/MinIO (+ presigned URL) |
 | [`release-cut`](actions/release-cut) | Cut a release with **no PR permission / no PAT**: conventional-commits semver → tag → GitHub Release (auto-notes) |
+| [`screenshots`](actions/screenshots) | Capture store screenshots across an Android + iOS device matrix (cold boot, drive-retry, per-device rescue, fail-loud) |
 
 ## Why it's built this way
 
@@ -129,9 +130,8 @@ dart test
 
 ## Roadmap
 
-A `screenshots` action (the emulator/simulator device-matrix capture + store
-upload), and an optional `workflow_call` that composes setup → version-stamp →
-build → upload end-to-end for a release.
+An optional `workflow_call` that composes setup → version-stamp → build →
+release-cut → submit → publish end-to-end, so a consumer calls one thing.
 
 ## Contributing
 
