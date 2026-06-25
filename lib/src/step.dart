@@ -154,7 +154,7 @@ class StepFailure implements Exception {
 String resolveIn(String root, String path) {
   if (path.isEmpty) return root;
   if (File(path).isAbsolute) return path;
-  final parts = path.split('/');
+  final parts = path.split(RegExp(r'[/\\]'));
   if (parts.contains('..')) {
     throw ArgumentError('Path traversal ("..") not allowed: $path');
   }

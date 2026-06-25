@@ -10,11 +10,13 @@ import 'package:vymalo_flutter_tools/vymalo_flutter_tools.dart';
 /// Write secret material to a tightly-locked temp file with a random name.
 File _writeSecretTemp(String prefix, String suffix, List<int> bytes) {
   final dir = Directory.systemTemp.createTempSync(prefix);
+  if (!Platform.isWindows) {
+    Process.runSync('chmod', ['0700', dir.path]);
+  }
   final f = File('${dir.path}/$suffix');
   f.writeAsBytesSync(bytes);
   if (!Platform.isWindows) {
     Process.runSync('chmod', ['0600', f.path]);
-    Process.runSync('chmod', ['0700', dir.path]);
   }
   return f;
 }
@@ -168,7 +170,13 @@ class IosBuildCommand extends Command<void> {
     var profilePath = '';
     final keychainPath = dryRun
         ? '<keychain>'
-        : '${Directory.systemTemp.createTempSync('vymalo-kc').path}/ci.keychain-db';
+        : (() {
+            final kcDir = Directory.systemTemp.createTempSync('vymalo-kc');
+            if (!Platform.isWindows) {
+              Process.runSync('chmod', ['0700', kcDir.path]);
+            }
+            return '${kcDir.path}/ci.keychain-db';
+          })();
 
     final certB64 = (env['IOS_CERTIFICATE_BASE64'] ?? '').trim();
     final profileB64 = (env['IOS_APPSTORE_PROVISION_PROFILE_BASE64'] ?? '')
@@ -437,14 +445,15 @@ class AndroidBuildCommand extends Command<void> {
       if (keystorePath.isNotEmpty) {
         final ksDir = File(keystorePath).parent;
         if (ksDir.existsSync()) ksDir.deleteSync(recursive: true);
+        // key.properties — only written when signing; clean it even on
+        // build failure. Never touch a caller-owned file on unsigned builds.
+        final keyPropsPath = resolveIn(
+          resolveIn(config.workspace, config.projectDir),
+          'android/key.properties',
+        );
+        final keyProps = File(keyPropsPath);
+        if (keyProps.existsSync()) keyProps.deleteSync();
       }
-      // key.properties — MUST be cleaned even on build failure
-      final keyPropsPath = resolveIn(
-        resolveIn(config.workspace, config.projectDir),
-        'android/key.properties',
-      );
-      final keyProps = File(keyPropsPath);
-      if (keyProps.existsSync()) keyProps.deleteSync();
     }
     _emitOutputs(config);
   }
