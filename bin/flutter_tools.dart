@@ -1079,9 +1079,12 @@ Future<void> _driveScreenshots(
   String driver,
   String target,
   String device,
-  List<String> defines,
-) async {
+  List<String> defines, {
+  required String cwd,
+}) async {
   for (var attempt = 1; ; attempt++) {
+    // Run from the app dir — driver/target are relative paths, and the driver
+    // shim writes PNGs to <cwd>/screenshots/ (which the collector reads).
     final rc = await _runLive(flutter, [
       'drive',
       '--driver=$driver',
@@ -1089,7 +1092,7 @@ Future<void> _driveScreenshots(
       '-d',
       device,
       ...defines,
-    ]);
+    ], cwd: cwd);
     if (rc == 0) return;
     if (attempt >= 2) throw StateError('flutter drive failed (exit $rc)');
     stdout.writeln('⚠ flutter drive failed (exit $rc); retrying once…');
@@ -1234,6 +1237,7 @@ Future<int> _captureAndroid({
         target,
         'emulator-5554',
         defines,
+        cwd: appRoot,
       );
       final n = _collectScreenshots(
         appRoot,
@@ -1301,7 +1305,14 @@ Future<int> _captureIos({
         throw StateError('simctl boot failed');
       }
       await _runLive('xcrun', ['simctl', 'bootstatus', udid, '-b']);
-      await _driveScreenshots(flutter, driver, target, udid, defines);
+      await _driveScreenshots(
+        flutter,
+        driver,
+        target,
+        udid,
+        defines,
+        cwd: appRoot,
+      );
       final n = _collectScreenshots(
         appRoot,
         iosScreenshotsDir(appRoot, locale: locale),
