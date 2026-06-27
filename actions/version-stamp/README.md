@@ -11,7 +11,7 @@ before any build.
 | What you need | Details |
 |---|---|
 | **Runner** | Any — Linux or macOS. |
-| **Run before this** | `actions/checkout`. (No Flutter setup needed — it just edits the file.) |
+| **Run before this** | `actions/checkout`, **plus Dart on `PATH`** — the action runs a small Dart CLI (`dart pub get` + `dart run`) to edit `pubspec.yaml`. Our `android-setup` / `ios-setup` (or any Flutter/Dart setup) provide it; on a bare runner add one first or it fails with `dart: command not found`. |
 | **Secrets** | None. |
 | **In your repo** | A `pubspec.yaml` under `project-dir` (default `mobile/`). |
 

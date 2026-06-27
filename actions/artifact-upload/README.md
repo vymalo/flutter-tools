@@ -8,7 +8,7 @@ build (APK/AAB/IPA) or a screenshots zip somewhere you can grab later.
 
 | What you need | Details |
 |---|---|
-| **Runner** | Any (Linux or macOS). The AWS CLI is auto-installed if `to-s3: true` and it's missing. |
+| **Runner** | Any (Linux or macOS). The AWS CLI is auto-installed if `to-s3: true` and it's missing. **S3 mode also needs Dart on `PATH`** (it runs a small Dart CLI to presign + upload) — a prior Flutter/Dart setup provides it; GitHub-Artifacts-only mode does not. |
 | **Run before this** | The file must exist (e.g. a build step's output path). |
 | **Secrets / credentials (only for S3)** | Standard AWS env vars on the step: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (or `AWS_DEFAULT_REGION`). For MinIO/self-hosted, also set `s3-endpoint`. GitHub-Artifacts mode needs **no** credentials. |
 
@@ -49,6 +49,7 @@ build (APK/AAB/IPA) or a screenshots zip somewhere you can grab later.
 | `to-s3` | no | `false` | Also upload to S3/MinIO. |
 | `s3-bucket` + `s3-key` | for S3 | — | Destination bucket + object key. |
 | `s3-endpoint` | for MinIO | — | S3-compatible endpoint. Empty = real AWS S3. |
+| `s3-make-bucket` | no | `true` | Create the bucket if it's missing. **Set `false` to fail loud** instead of auto-creating an orphan bucket on a mistyped `s3-bucket`. |
 | `s3-expires-in` | no | `604800` | Presigned-URL lifetime (seconds; default 7 days). |
 
 ## Outputs

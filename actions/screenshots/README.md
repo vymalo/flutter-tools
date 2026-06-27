@@ -22,6 +22,7 @@ drive retry, per-device rescue (one bad device doesn't sink the rest), and
    *silently drops every screenshot* when `onScreenshot` is null:
 
    ```dart
+   import 'dart:io';
    import 'package:integration_test/integration_test_driver_extended.dart';
    Future<void> main() => integrationDriver(
      onScreenshot: (name, bytes, [args]) async {
