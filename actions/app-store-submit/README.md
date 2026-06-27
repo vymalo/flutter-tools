@@ -28,6 +28,8 @@ Optionally submits the version for review.
   with:
     screenshots-path: mobile/fastlane/screenshots
     skip-binary-upload: true
+    skip-screenshots: false   # REQUIRED here: defaults to true, so without it
+                              # deliver skips the screenshots too and uploads nothing
     overwrite-screenshots: true
     asc-key-id:         ${{ secrets.ASC_KEY_ID }}
     asc-issuer-id:      ${{ secrets.ASC_ISSUER_ID }}
@@ -43,6 +45,7 @@ Optionally submits the version for review.
 | `app-version` | no | _(pubspec)_ | Marketing `x.y.z` of the version to update. |
 | `screenshots-path` | for screenshots | — | Folder of screenshots to deliver. |
 | `skip-binary-upload` | no | `false` | `true` = screenshots only (no IPA). |
+| `skip-screenshots` | no | `true` | `true` = don't deliver screenshots (binary-only). **Set `false` for screenshots mode** or nothing uploads. |
 | `overwrite-screenshots` | no | `false` | Replace the version's existing screenshots. |
 | `submit-for-review` | no | `false` | Submit the version for App Review after upload. |
 
