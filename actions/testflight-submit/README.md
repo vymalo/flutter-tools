@@ -9,7 +9,7 @@ Store Connect **API key** (no Apple-ID password). Use it after
 | What you need | Details |
 |---|---|
 | **Runner** | macOS (the IPA is built on a Mac; keep the upload on the same job). |
-| **Run before this** | A built IPA — typically [`ios-build`](../ios-build). |
+| **Run before this** | A built IPA — typically [`ios-build`](../ios-build). **Dart on PATH** is also required (this action runs a small Dart CLI); `ios-setup`/`ios-build` earlier in the job provide it — on a standalone upload job add a Flutter/Dart setup first. |
 | **Secrets / credentials** | An App Store Connect **API key**: `asc-key-id`, `asc-issuer-id`, and `asc-api-key-base64` (base64 of the `.p8` you downloaded from ASC → Users and Access → Integrations → App Store Connect API). |
 | **In your Apple account** | The app must already exist in App Store Connect, and the API key needs at least the **App Manager** role. |
 

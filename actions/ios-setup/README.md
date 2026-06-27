@@ -16,7 +16,7 @@ codegen, sets up Bundler, and runs `pod install`. Put it after `checkout`, befor
 ## Usage
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
 - uses: vymalo/flutter-tools/actions/ios-setup@v0
   with:
     flutter-version: '3.44.2'

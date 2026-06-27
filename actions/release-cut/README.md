@@ -37,7 +37,7 @@ jobs:
   cut:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }      # required
       - uses: vymalo/flutter-tools/actions/android-setup@v0   # puts Dart on PATH
       - id: cut

@@ -21,7 +21,7 @@ before any build.
 ## Usage
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
 - id: ver
   uses: vymalo/flutter-tools/actions/version-stamp@v0
   with:

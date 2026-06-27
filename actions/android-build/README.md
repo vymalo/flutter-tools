@@ -20,7 +20,7 @@ as outputs. No Fastlane/Ruby needed. With no keystore it falls back to an
 ## Usage
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
 - uses: vymalo/flutter-tools/actions/android-setup@v0
   with: { flutter-version: '3.44.2' }
 

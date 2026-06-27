@@ -21,7 +21,7 @@ where `flutter build ipa` wrongly rejects an "Apple Distribution" cert.)
 ## Usage
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
 - uses: vymalo/flutter-tools/actions/ios-setup@v0
 - id: build
   uses: vymalo/flutter-tools/actions/ios-build@v0

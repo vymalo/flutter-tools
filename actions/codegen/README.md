@@ -18,7 +18,7 @@ generated `*.g.dart` → app `build_runner` (riverpod / drift / go_router).
 ## Usage
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
 - uses: vymalo/flutter-tools/actions/codegen@v0
   with:
     project-dir: mobile
