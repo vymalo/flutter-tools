@@ -67,7 +67,7 @@ Override the matrix with `ios-devices` (`"sim|label,…"`) and `android-devices`
 ## Usage
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
 - uses: vymalo/flutter-tools/actions/ios-setup@v0
 - id: shots
   uses: vymalo/flutter-tools/actions/screenshots@v0

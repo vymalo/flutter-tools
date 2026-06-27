@@ -16,7 +16,7 @@ optionally Ruby for Fastlane), then runs your codegen. Put it right after
 ## Usage
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
 - uses: vymalo/flutter-tools/actions/android-setup@v0
   with:
     flutter-version: '3.44.2'
