@@ -74,7 +74,7 @@ runs:
     # needs only contents: write (no PR, no PAT). A GITHUB_TOKEN-created tag does
     # not start other `push:` runs, so call the build from the SAME run if needed.
     - name: Tag + GitHub Release (auto-notes)
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ steps.compute.outputs.tag }}
         target_commitish: ${{ inputs.target }}

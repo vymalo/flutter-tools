@@ -20,14 +20,14 @@ been applied — this revision corrects the pinned column to reality.
 | `args` (Dart package) | `^2.5.0` | 2.7.0 | caret already resolves 2.7.0 | No |
 | `lints` (Dart package) | `^6.0.0` | 6.1.0 | caret already resolves 6.1.0 | No |
 | `test` (Dart package) | `^1.25.0` | 1.31.2 | caret already resolves 1.31.2 | No |
-| `actions/checkout` (ci.yml) | `@v6` | v7.0.0 | 1 major | **Yes** (ci.yml) |
+| `actions/checkout` (ci.yml + examples) | `@v7` | v7.0.0 | Current | No (done) |
 | `dart-lang/setup-dart` (ci.yml) | `@v1` | v1.7.2 | `@v1` tracks latest | No |
 | `actions/upload-artifact` | `@v7` | v7.0.1 | Current | No |
 | `subosito/flutter-action` | `@v2` | v2.23.0 | `@v2` tracks latest | No |
 | `actions/setup-java` | `@v5` | v5.4.0 | Current | No |
 | `ruby/setup-ruby` | `@v1` | v1.314.0 | `@v1` tracks latest | No |
 | `actions/cache` | `@v6` | v6.1.0 | Current | No |
-| `softprops/action-gh-release` (release-cut) | `@v2` | v3.0.1 | 1 major | No — see §4.8 |
+| `softprops/action-gh-release` (release-cut) | `@v3` | v3.0.1 | Current | No (done) |
 | `unfor19/install-aws-cli-action` | `@v1` | v1 (1.0.8) | Current | No |
 | Ruby (action default) | `3.4` | 4.0.5 | 2 major | Optional |
 | Java / Temurin (action default) | `21` | 21 LTS / 25 LTS | Current LTS | No |
@@ -87,12 +87,11 @@ optionally raise the floor to pick up `--coverage-path` etc. as a hard minimum.
 ### 4.1 `actions/checkout`
 | | |
 |---|---|
-| **Pinned** | `@v6` (ci.yml line 22) — **the README examples use `@v7`** |
+| **Pinned** | `@v7` (ci.yml + the README examples) |
 | **Latest** | **v7.0.0** |
 
 v7 adds fork-PR checkout hardening for `pull_request_target` / `workflow_run` and
-requires runner ≥ v2.329.0. flutter-tools' own CI is GitHub-hosted, so **bumping
-`ci.yml` to `@v7` is safe** — the one genuinely-pending action upgrade.
+requires runner ≥ v2.329.0. **Bumped** — flutter-tools' own CI is GitHub-hosted, so v7 is safe there.
 
 ### 4.2 `dart-lang/setup-dart` — pinned `@v1` (ci.yml), latest **v1.7.2**
 `@v1` already tracks the latest v1.x (v1.7.2 moved to Node 24 + patched
@@ -119,14 +118,14 @@ Node 24 line (runner ≥ v2.327.1). No change.
 ### 4.8 `softprops/action-gh-release` (used by `release-cut`)
 | | |
 |---|---|
-| **Pinned** | `@v2` (release-cut/action.yml) |
+| **Pinned** | `@v3` (release-cut/action.yml) |
 | **Latest** | **v3.0.1** |
 
-**Kept on `@v2` deliberately.** v3.0.0 only moves the runtime from Node 20 to
-**Node 24** — no input/behavior changes — but `release-cut` runs on the
-**self-hosted arc runner**, which may not yet provide the Node 24 Actions runtime;
-`v2.x` remains maintained (currently `v2.6.2`). Bump to `@v3` only once the
-self-hosted fleet is confirmed on a Node-24-capable runner (≈ runner ≥ v2.327.1).
+**Bumped to `@v3`.** v3.0.0 only moves the runtime from Node 20 to **Node 24** — no
+input/behavior changes. Since `release-cut` runs on the **self-hosted arc runner**,
+this assumes that fleet provides the Node 24 Actions runtime (≈ runner ≥ v2.327.1) —
+the next manual release cut validates it. If it fails with a Node-24 error, revert
+release-cut to `@v2` (still maintained as `v2.6.2`) or update the runner image.
 
 ### 4.9 `unfor19/install-aws-cli-action` — pinned `@v1`, latest **v1 (1.0.8)**
 Current. Used only as a Linux/Windows fallback when `aws` isn't on PATH
@@ -156,13 +155,13 @@ Fastlane release can't break CI unannounced.
 ## 6. Remaining upgrade plan
 
 Most of the first draft's "immediate" upgrades (upload-artifact, setup-java, cache,
-lints, the Dart SDK floor) are **already applied**. What's left:
+lints, the Dart SDK floor) are **already applied**. `checkout@v7` in `ci.yml` (§4.1)
+and `action-gh-release@v3` in release-cut (§4.8) are **now done** too. What's left:
 
-1. **`actions/checkout@v6 → @v7` in `ci.yml`** — safe on GitHub-hosted CI (§4.1).
-2. **Pin Fastlane** in the submit actions (§5.3).
-3. *Optional:* bump the Flutter default `3.44.2 → 3.44.4` (§2).
-4. *Hold:* `action-gh-release@v2 → @v3` until the self-hosted runners are
-   confirmed Node-24-capable (§4.8).
+1. **Pin Fastlane** in the submit actions (§5.3).
+2. *Optional:* bump the Flutter default `3.44.2 → 3.44.4` (§2).
+3. *Validate:* the next manual release cut exercises `action-gh-release@v3` on the
+   self-hosted arc runner — confirm it's Node-24-capable (§4.8).
 
 ---
 
