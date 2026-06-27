@@ -33,6 +33,11 @@ licensed; use it for yours.
 | [`release-cut`](actions/release-cut) | Cut a release with **no PR permission / no PAT**: conventional-commits semver → tag → GitHub Release (auto-notes) |
 | [`screenshots`](actions/screenshots) | Capture store screenshots across an Android + iOS device matrix (cold boot, drive-retry, per-device rescue, fail-loud) |
 
+**New here?** Click any action above — each folder has its own README with a
+plain-language **Requirements** checklist (which runner, what to run before it,
+which secrets/permissions) and a copy-paste example. Start with the
+[Quick start](#quick-start) below.
+
 ## Why it's built this way
 
 - **Logic in Dart, glue in bash.** Each action is a thin composite wrapper around
