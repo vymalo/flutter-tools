@@ -3,8 +3,9 @@
 # the matching GitHub release, verify its SHA-256, and expose it.
 #
 # This replaces the per-run `dart pub get` + `dart run` dance: the AOT binary is
-# self-contained (no Dart SDK on the runner, no dependency resolution), so a step
-# that uses it pays a single small download instead of a full pub resolve.
+# self-contained (no Dart SDK on the runner, no dependency resolution). The first
+# action in a job downloads it; later actions reuse it from a job-scoped cache, so
+# a multi-action job pays for the download once.
 #
 # It writes the binary path to stdout, to $GITHUB_OUTPUT (cli=<path>), and
 # prepends its directory to $GITHUB_PATH so later steps can call `flutter-tools`
@@ -49,35 +50,58 @@ asset="flutter-tools-${os_slug}-${arch_slug}"
 tag="cli-v${version}"
 base="https://github.com/${REPO}/releases/download/${tag}"
 
-# Unique 0700 dir per run (mktemp), so a shared/static path on a self-hosted
-# runner can't be hijacked or collide between concurrent jobs.
-dest_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/vymalo-flutter-tools.XXXXXX")"
-bin="$dest_dir/flutter-tools"
-
-curl --fail --silent --show-error --location --retry 3 -o "$bin" "$base/$asset"
-curl --fail --silent --show-error --location --retry 3 -o "$dest_dir/SHA256SUMS" "$base/SHA256SUMS"
-
-expected="$(awk -v f="$asset" '{sub(/\r$/, "", $2); sub(/^\*/, "", $2); if ($2 == f) print $1}' "$dest_dir/SHA256SUMS")"
-if [ -z "$expected" ]; then
-  echo "::error::no checksum for $asset in $tag SHA256SUMS" >&2
-  exit 1
-fi
-if command -v sha256sum >/dev/null 2>&1; then
-  actual="$(sha256sum "$bin" | awk '{print $1}')"
+# Job-scoped cache. RUNNER_TEMP is unique per job and is NOT shared by concurrent
+# jobs on a runner, so a binary an earlier step already fetched can be reused
+# safely within the same job — turning N downloads (one per action) into one.
+# Keyed by asset+version so a stale binary is never reused. Outside Actions
+# (no RUNNER_TEMP) fall back to a fresh mktemp dir: no cross-step reuse, but
+# collision-safe (a static /tmp path could be hijacked on a shared host).
+key="${asset}-${version}"
+if [ -n "${RUNNER_TEMP:-}" ]; then
+  bin_dir="$RUNNER_TEMP/vymalo-flutter-tools/$key"
 else
-  actual="$(shasum -a 256 "$bin" | awk '{print $1}')"
+  bin_dir="$(mktemp -d "${TMPDIR:-/tmp}/vymalo-flutter-tools.XXXXXX")/$key"
 fi
-if [ "$expected" != "$actual" ]; then
-  echo "::error::checksum mismatch for $asset (expected $expected, got $actual)" >&2
-  exit 1
-fi
+mkdir -p "$bin_dir"
+bin="$bin_dir/flutter-tools"
 
-chmod +x "$bin"
-# Defensive: drop any Gatekeeper quarantine flag on macOS runners (curl usually
-# doesn't set it, but this guarantees the unsigned binary is runnable).
-[ "$os_slug" = macos ] && xattr -d com.apple.quarantine "$bin" 2>/dev/null || true
+if [ -x "$bin" ]; then
+  # Already fetched + verified by an earlier step in this job — skip the network.
+  echo "Reusing flutter-tools $tag from this job's cache ($bin)" >&2
+else
+  tmp="$(mktemp "$bin_dir/.download.XXXXXX")"
+  sums="$(mktemp "$bin_dir/.sha256sums.XXXXXX")"
+  curl --fail --silent --show-error --location --retry 3 -o "$tmp" "$base/$asset"
+  curl --fail --silent --show-error --location --retry 3 -o "$sums" "$base/SHA256SUMS"
+
+  expected="$(awk -v f="$asset" '{sub(/\r$/, "", $2); sub(/^\*/, "", $2); if ($2 == f) print $1}' "$sums")"
+  if [ -z "$expected" ]; then
+    echo "::error::no checksum for $asset in $tag SHA256SUMS" >&2
+    exit 1
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$tmp" | awk '{print $1}')"
+  else
+    actual="$(shasum -a 256 "$tmp" | awk '{print $1}')"
+  fi
+  if [ "$expected" != "$actual" ]; then
+    echo "::error::checksum mismatch for $asset (expected $expected, got $actual)" >&2
+    exit 1
+  fi
+
+  chmod +x "$tmp"
+  # Defensive: drop any Gatekeeper quarantine flag on macOS runners (curl usually
+  # doesn't set it, but this guarantees the unsigned binary is runnable).
+  [ "$os_slug" = macos ] && xattr -d com.apple.quarantine "$tmp" 2>/dev/null || true
+
+  # Publish atomically: $bin only appears once fully downloaded + verified, so a
+  # failed/partial download is never mistaken for a cache hit by a later step.
+  mv -f "$tmp" "$bin"
+  rm -f "$sums"
+  echo "Downloaded flutter-tools $tag ($asset) -> $bin" >&2
+fi
 
 echo "$bin"
 [ -n "${GITHUB_OUTPUT:-}" ] && echo "cli=$bin" >>"$GITHUB_OUTPUT"
-[ -n "${GITHUB_PATH:-}" ] && echo "$dest_dir" >>"$GITHUB_PATH"
+[ -n "${GITHUB_PATH:-}" ] && echo "$bin_dir" >>"$GITHUB_PATH"
 exit 0
