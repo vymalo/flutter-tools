@@ -10,9 +10,6 @@ name: release-cli
 
 on:
   push:
-    # TEMP CHEAT — testing the build matrix on the PR branch. REVERT to
-    # `tags: ['cli-v*']` before merge.
-    branches: ['**']
     tags: ['cli-v*']
 
 permissions:
@@ -26,8 +23,9 @@ jobs:
         include:
           - { runner: ubuntu-latest, asset: flutter-tools-linux-x64 }
           - { runner: ubuntu-24.04-arm, asset: flutter-tools-linux-arm64 }
-          - { runner: macos-14, asset: flutter-tools-macos-arm64 }
-          - { runner: macos-13, asset: flutter-tools-macos-x64 }
+          # macos-15 is the arm64 (Apple Silicon) image; Intel is macos-15-intel.
+          # We don't ship a macОS x64 binary — GitHub macOS runners are arm64.
+          - { runner: macos-15, asset: flutter-tools-macos-arm64 }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
@@ -53,10 +51,6 @@ jobs:
 
   release:
     needs: build
-    # TEMP CHEAT companion — only publish on real tags so branch-push test runs
-    # don't fail the tag assertion / create stray releases. REVERT with the
-    # trigger above.
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
