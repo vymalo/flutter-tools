@@ -45,11 +45,12 @@ which secrets/permissions) and a copy-paste example. Start with the
   `List<Step>` (run a command, write/copy/delete a file…) that's *planned* then
   *executed* — so behaviour is testable without spawning a process. Run any
   command with `--dry-run` to print its plan.
-- **Prebuilt CLI, not resolved at runtime.** Most actions download a
+- **Prebuilt CLI, not resolved at runtime.** Every action downloads a
   self-contained, **checksum-verified** binary of the CLI for the runner's
-  OS/arch (Linux x64/arm64, macOS arm64) — no Dart SDK, no `dart pub get` on
-  every run. Only `codegen` / `android-setup` / `ios-setup` still use `dart run`,
-  since they set up Flutter anyway. See [Releasing the CLI](#releasing-the-cli).
+  OS/arch (Linux x64/arm64, macOS arm64) — no `dart pub get` on every run. The
+  build/codegen actions still set up Flutter (the CLI shells out to
+  `dart`/`flutter`/`build_runner`); the rest need nothing on PATH. See
+  [Releasing](docs/RELEASING.md).
 - **Quiet by default.** Command output is captured and shown **only on failure**
   (chronic-style) — a green run is one tick per step. Turn on GitHub step-debug
   (`RUNNER_DEBUG=1`) or pass `--verbose` to stream everything. No `moreutils`
@@ -163,19 +164,13 @@ dart test
 An optional `workflow_call` that composes setup → version-stamp → build →
 release-cut → submit → publish end-to-end, so a consumer calls one thing.
 
-## Releasing the CLI
+## Releasing
 
-The actions download a prebuilt CLI binary from a GitHub Release; the version is
-pinned per action ref by [`cli-version.txt`](cli-version.txt) (consumers don't
-manage it). To cut a release:
-
-1. Bump the version in [`cli-version.txt`](cli-version.txt) and merge it to `main`.
-2. **Actions** tab → **release-cli** → **Run workflow**.
-
-The workflow compiles the binary on each runner (Linux x64/arm64, macOS arm64),
-then creates the `cli-v<version>` tag + GitHub Release with the binaries and a
-`SHA256SUMS`. No local `git tag` needed; re-running for the same version updates
-the existing release.
+There are two artifacts — the **prebuilt CLI binary** (`release-cli`) and the
+**action version tags** (`release-actions`) — both cut from the Actions tab, no
+local `git tag`. The ordering matters (binary first). The full step-by-step,
+including when to bump [`cli-version.txt`](cli-version.txt) and how to verify and
+roll back, is in **[docs/RELEASING.md](docs/RELEASING.md)**.
 
 ## Contributing
 

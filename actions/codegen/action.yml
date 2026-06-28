@@ -66,14 +66,15 @@ runs:
         distribution: temurin
         java-version: ${{ inputs.java-version }}
 
-    - name: Resolve flutter-tools CLI dependencies
+    # Fetch the prebuilt CLI binary (no `dart pub get`). The CLI still shells out
+    # to `dart`/`flutter` for the actual codegen, which the setup above provides.
+    - name: Install flutter-tools CLI
+      id: install
       shell: bash
-      working-directory: ${{ github.action_path }}/../..
-      run: dart pub get
+      run: bash "${{ github.action_path }}/../../scripts/install-cli.sh"
 
     - name: Run layered codegen
       shell: bash
-      working-directory: ${{ github.action_path }}/../..
       env:
         INPUT_WORKSPACE: ${{ inputs.workspace }}
         INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
@@ -84,7 +85,7 @@ runs:
         INPUT_CLEAN: ${{ inputs.clean }}
         INPUT_UPGRADE_DART_STYLE: ${{ inputs.upgrade-dart-style }}
       run: >-
-        dart run bin/flutter_tools.dart codegen
+        "${{ steps.install.outputs.cli }}" codegen
         --workspace "$INPUT_WORKSPACE"
         --project-dir "$INPUT_PROJECT_DIR"
         --api-dir "$INPUT_API_DIR"
