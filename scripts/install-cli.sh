@@ -22,6 +22,9 @@ version="${1:-${CLI_VERSION:-}}"
 if [ -z "$version" ]; then
   version="$(tr -d ' \t\n\r' < "$repo_root/cli-version.txt")"
 fi
+# Tolerate a leading `cli-v` / `v` so `v0.1.0` or `cli-v0.1.0` also resolve.
+version="${version#cli-v}"
+version="${version#v}"
 
 os="${RUNNER_OS:-$(uname -s)}"
 arch="${RUNNER_ARCH:-$(uname -m)}"
@@ -46,14 +49,15 @@ asset="flutter-tools-${os_slug}-${arch_slug}"
 tag="cli-v${version}"
 base="https://github.com/${REPO}/releases/download/${tag}"
 
-dest_dir="${RUNNER_TEMP:-/tmp}/vymalo-flutter-tools"
-mkdir -p "$dest_dir"
+# Unique 0700 dir per run (mktemp), so a shared/static path on a self-hosted
+# runner can't be hijacked or collide between concurrent jobs.
+dest_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/vymalo-flutter-tools.XXXXXX")"
 bin="$dest_dir/flutter-tools"
 
 curl --fail --silent --show-error --location --retry 3 -o "$bin" "$base/$asset"
 curl --fail --silent --show-error --location --retry 3 -o "$dest_dir/SHA256SUMS" "$base/SHA256SUMS"
 
-expected="$(awk -v f="$asset" '$2 == f {print $1}' "$dest_dir/SHA256SUMS")"
+expected="$(awk -v f="$asset" '{sub(/\r$/, "", $2); sub(/^\*/, "", $2); if ($2 == f) print $1}' "$dest_dir/SHA256SUMS")"
 if [ -z "$expected" ]; then
   echo "::error::no checksum for $asset in $tag SHA256SUMS" >&2
   exit 1
