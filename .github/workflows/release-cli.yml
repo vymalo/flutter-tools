@@ -4,13 +4,15 @@
 # `dart pub get` + `dart run` — killing the per-run dependency-resolution cost.
 #
 # `dart compile exe` cannot cross-compile, so each target gets its own runner.
-# Trigger by pushing a tag that matches cli-version.txt, e.g.:
-#   git tag cli-v0.1.0 && git push origin cli-v0.1.0
+#
+# Run it manually from the Actions tab ("Run workflow"). The released version is
+# read from cli-version.txt — bump that file (and merge it) to cut a new version,
+# then dispatch. The run creates the `cli-v<version>` tag + Release at the chosen
+# ref. No local `git tag` / push needed.
 name: release-cli
 
 on:
-  push:
-    tags: ['cli-v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -54,13 +56,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Verify tag matches cli-version.txt
+      - name: Resolve tag from cli-version.txt
+        id: ver
         run: |
-          want="cli-v$(tr -d ' \t\n\r' < cli-version.txt)"
-          if [ "$want" != "${GITHUB_REF_NAME}" ]; then
-            echo "::error::tag ${GITHUB_REF_NAME} does not match cli-version.txt ($want)"
+          version="$(tr -d ' \t\n\r' < cli-version.txt)"
+          if [ -z "$version" ]; then
+            echo "::error::cli-version.txt is empty"
             exit 1
           fi
+          echo "tag=cli-v$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing cli-v$version from ${GITHUB_SHA}"
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -72,9 +77,12 @@ jobs:
           rm -f ./*.sha256
           echo "Published binaries:"
           cat SHA256SUMS
+      # Creates the cli-v<version> tag at the dispatched commit if it doesn't
+      # exist, then publishes (or updates) the Release with the binaries.
       - uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.ver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: |
             artifacts/flutter-tools-*
             artifacts/SHA256SUMS
