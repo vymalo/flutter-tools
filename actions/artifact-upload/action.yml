@@ -87,10 +87,14 @@ runs:
       if: ${{ inputs.to-s3 == 'true' && steps.awscli.outputs.have != 'true' }}
       uses: unfor19/install-aws-cli-action@v1
 
+    - id: install
+      if: ${{ inputs.to-s3 == 'true' }}
+      shell: bash
+      run: bash "${{ github.action_path }}/../../scripts/install-cli.sh"
+
     - id: s3
       if: ${{ inputs.to-s3 == 'true' }}
       shell: bash
-      working-directory: ${{ github.action_path }}/../..
       env:
         INPUT_S3_BUCKET: ${{ inputs.s3-bucket }}
         INPUT_S3_KEY: ${{ inputs.s3-key }}
@@ -99,8 +103,7 @@ runs:
         INPUT_S3_MAKE_BUCKET: ${{ inputs.s3-make-bucket }}
       run: |
         set -euo pipefail
-        dart pub get
-        dart run bin/flutter_tools.dart s3-upload \
+        "${{ steps.install.outputs.cli }}" s3-upload \
           --file "${{ steps.meta.outputs.file-abs }}" \
           --bucket "$INPUT_S3_BUCKET" \
           --key "$INPUT_S3_KEY" \

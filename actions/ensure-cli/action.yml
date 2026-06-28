@@ -1,0 +1,26 @@
+name: 'Ensure flutter-tools CLI (Vymalo)'
+description: >-
+  Download and checksum-verify the prebuilt flutter-tools CLI for this runner's
+  OS/arch from the matching GitHub release, then put it on PATH. A self-contained
+  AOT binary — no Dart SDK, no `dart pub get` — so it replaces the per-run
+  dependency resolution that the other actions used to pay. Exposes the binary
+  path as the `cli` output; later steps can also just call `flutter-tools`.
+
+inputs:
+  version:
+    description: >-
+      CLI release version to fetch, WITHOUT the `cli-v` prefix (e.g. `0.1.0`).
+      Leave blank to use the version pinned by this action ref (cli-version.txt).
+    default: ''
+
+outputs:
+  cli:
+    description: 'Absolute path to the downloaded flutter-tools binary.'
+    value: ${{ steps.install.outputs.cli }}
+
+runs:
+  using: composite
+  steps:
+    - id: install
+      shell: bash
+      run: bash "${{ github.action_path }}/../../scripts/install-cli.sh" "${{ inputs.version }}"

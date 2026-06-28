@@ -43,9 +43,12 @@ outputs:
 runs:
   using: composite
   steps:
+    - id: install
+      shell: bash
+      run: bash "${{ github.action_path }}/../../scripts/install-cli.sh"
+
     - id: build
       shell: bash
-      working-directory: ${{ github.action_path }}/../..
       env:
         ANDROID_KEYSTORE_BASE64: ${{ inputs.keystore-base64 }}
         ANDROID_KEYSTORE_PASSWORD: ${{ inputs.keystore-password }}
@@ -58,8 +61,6 @@ runs:
         INPUT_DART_DEFINES: ${{ inputs.dart-defines }}
       run: |
         set -euo pipefail
-        dart pub get
-
         args=(
           android-build
           --workspace "$INPUT_WORKSPACE"
@@ -74,4 +75,4 @@ runs:
           [ -n "$line" ] && args+=(--dart-define "$line")
         done <<< "$INPUT_DART_DEFINES"
 
-        dart run bin/flutter_tools.dart "${args[@]}"
+        "${{ steps.install.outputs.cli }}" "${args[@]}"

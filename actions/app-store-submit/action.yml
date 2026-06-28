@@ -45,8 +45,11 @@ runs:
       shell: bash
       run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document --version '~>2.230'
 
+    - id: install
+      shell: bash
+      run: bash "${{ github.action_path }}/../../scripts/install-cli.sh"
+
     - shell: bash
-      working-directory: ${{ github.action_path }}/../..
       env:
         APP_STORE_CONNECT_KEY_ID: ${{ inputs.asc-key-id }}
         APP_STORE_CONNECT_ISSUER_ID: ${{ inputs.asc-issuer-id }}
@@ -62,7 +65,6 @@ runs:
         INPUT_SCREENSHOTS_PATH: ${{ inputs.screenshots-path }}
       run: |
         set -euo pipefail
-        dart pub get
         args=(
           app-store-submit
           --workspace "$INPUT_WORKSPACE"
@@ -75,4 +77,4 @@ runs:
         [ -n "$INPUT_IPA" ]              && args+=(--ipa "$INPUT_IPA")
         [ -n "$INPUT_APP_VERSION" ]      && args+=(--app-version "$INPUT_APP_VERSION")
         [ -n "$INPUT_SCREENSHOTS_PATH" ] && args+=(--screenshots-path "$INPUT_SCREENSHOTS_PATH")
-        dart run bin/flutter_tools.dart "${args[@]}"
+        "${{ steps.install.outputs.cli }}" "${args[@]}"

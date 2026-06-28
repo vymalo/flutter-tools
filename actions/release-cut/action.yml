@@ -42,12 +42,14 @@ outputs:
 runs:
   using: composite
   steps:
+    - id: install
+      shell: bash
+      run: bash "${{ github.action_path }}/../../scripts/install-cli.sh"
+
     - id: compute
       shell: bash
-      working-directory: ${{ github.action_path }}/../..
       # Route inputs through env (never interpolated into the script), so a value
-      # from workflow_dispatch / repo vars can't break out and run shell. Needs
-      # Dart on PATH (a Flutter/Dart setup step, or this repo's android/ios-setup).
+      # from workflow_dispatch / repo vars can't break out and run shell.
       env:
         INPUT_WORKSPACE: ${{ inputs.workspace }}
         INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
@@ -62,8 +64,7 @@ runs:
           echo "::error::release-cut needs full history + tags — checkout with fetch-depth: 0." >&2
           exit 1
         fi
-        dart pub get
-        dart run bin/flutter_tools.dart release-cut \
+        "${{ steps.install.outputs.cli }}" release-cut \
           --workspace "$INPUT_WORKSPACE" \
           --project-dir "$INPUT_PROJECT_DIR" \
           --tag-prefix "$INPUT_TAG_PREFIX" \

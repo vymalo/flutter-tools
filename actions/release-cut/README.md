@@ -9,7 +9,7 @@ creates a **GitHub Release** with auto-generated notes. Needs only the default
 
 | What you need | Details |
 |---|---|
-| **Runner** | Any with **Dart on PATH** — run a Flutter/Dart setup first (this repo's [`android-setup`](../android-setup) / [`ios-setup`](../ios-setup), or `subosito/flutter-action`). |
+| **Runner** | Any. No Dart/Flutter setup required — the action downloads a prebuilt CLI binary for the runner's OS/arch. (Dart on `PATH` is a harmless nice-to-have.) Needs full git history + tags (`fetch-depth: 0`). |
 | **Run before this** | **`actions/checkout` with `fetch-depth: 0`** — the version is computed from tags + full history. A shallow clone is rejected loudly (it would silently mis-baseline). |
 | **Workflow permissions** | `permissions: { contents: write }`. No PAT, no PR-create permission. |
 | **Secrets** | None beyond the built-in `GITHUB_TOKEN`. |
@@ -38,8 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with: { fetch-depth: 0 }      # required
-      - uses: vymalo/flutter-tools/actions/android-setup@v0   # puts Dart on PATH
+        with: { fetch-depth: 0 }      # required — needs full history + tags
       - id: cut
         uses: vymalo/flutter-tools/actions/release-cut@v0
         with:
