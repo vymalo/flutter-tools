@@ -45,6 +45,11 @@ which secrets/permissions) and a copy-paste example. Start with the
   `List<Step>` (run a command, write/copy/delete a file…) that's *planned* then
   *executed* — so behaviour is testable without spawning a process. Run any
   command with `--dry-run` to print its plan.
+- **Prebuilt CLI, not resolved at runtime.** Most actions download a
+  self-contained, **checksum-verified** binary of the CLI for the runner's
+  OS/arch (Linux x64/arm64, macOS arm64) — no Dart SDK, no `dart pub get` on
+  every run. Only `codegen` / `android-setup` / `ios-setup` still use `dart run`,
+  since they set up Flutter anyway. See [Releasing the CLI](#releasing-the-cli).
 - **Quiet by default.** Command output is captured and shown **only on failure**
   (chronic-style) — a green run is one tick per step. Turn on GitHub step-debug
   (`RUNNER_DEBUG=1`) or pass `--verbose` to stream everything. No `moreutils`
@@ -55,8 +60,9 @@ which secrets/permissions) and a copy-paste example. Start with the
   [`install-aws-cli-action`](https://github.com/unfor19/install-aws-cli-action),
   [`flutter-action`](https://github.com/subosito/flutter-action)).
 - **Free + self-hosted friendly.** No paid services. Runs the same on
-  GitHub-hosted or self-hosted runners (the actions read your toolchain from
-  PATH, with opt-in setup steps).
+  GitHub-hosted or self-hosted runners. The build/codegen actions read your
+  Flutter toolchain from PATH (with opt-in setup steps); the rest just run the
+  prebuilt CLI binary and need nothing on PATH.
 
 ## Quick start
 
@@ -156,6 +162,20 @@ dart test
 
 An optional `workflow_call` that composes setup → version-stamp → build →
 release-cut → submit → publish end-to-end, so a consumer calls one thing.
+
+## Releasing the CLI
+
+The actions download a prebuilt CLI binary from a GitHub Release; the version is
+pinned per action ref by [`cli-version.txt`](cli-version.txt) (consumers don't
+manage it). To cut a release:
+
+1. Bump the version in [`cli-version.txt`](cli-version.txt) and merge it to `main`.
+2. **Actions** tab → **release-cli** → **Run workflow**.
+
+The workflow compiles the binary on each runner (Linux x64/arm64, macOS arm64),
+then creates the `cli-v<version>` tag + GitHub Release with the binaries and a
+`SHA256SUMS`. No local `git tag` needed; re-running for the same version updates
+the existing release.
 
 ## Contributing
 
