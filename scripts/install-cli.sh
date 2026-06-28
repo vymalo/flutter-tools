@@ -63,6 +63,7 @@ else
   bin_dir="$(mktemp -d "${TMPDIR:-/tmp}/vymalo-flutter-tools.XXXXXX")/$key"
 fi
 mkdir -p "$bin_dir"
+chmod 700 "$bin_dir"  # owner-only, matching the mktemp fallback's 0700
 bin="$bin_dir/flutter-tools"
 
 if [ -x "$bin" ]; then
