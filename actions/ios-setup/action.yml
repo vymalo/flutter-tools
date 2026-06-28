@@ -49,17 +49,22 @@ runs:
         distribution: temurin
         java-version: ${{ inputs.java-version }}
 
+    - name: Install flutter-tools CLI
+      if: ${{ inputs.run-codegen == 'true' }}
+      id: install
+      shell: bash
+      run: bash "${{ github.action_path }}/../../scripts/install-cli.sh"
+
     - name: Layered codegen
       if: ${{ inputs.run-codegen == 'true' }}
       shell: bash
-      working-directory: ${{ github.action_path }}/../..
       env:
         INPUT_WORKSPACE: ${{ inputs.workspace }}
         INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
         INPUT_API_PUBSPEC_TEMPLATE: ${{ inputs.api-pubspec-template }}
         INPUT_CLEAN: ${{ inputs.clean }}
       run: >-
-        dart pub get && dart run bin/flutter_tools.dart codegen
+        "${{ steps.install.outputs.cli }}" codegen
         --workspace "$INPUT_WORKSPACE"
         --project-dir "$INPUT_PROJECT_DIR"
         --api-pubspec-template "$INPUT_API_PUBSPEC_TEMPLATE"
