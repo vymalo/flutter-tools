@@ -1,0 +1,64 @@
+# Cut an action version of this repo (the composite actions consumers reference
+# as `vymalo/flutter-tools/actions/<name>@v0`). Creates an immutable `vX.Y.Z` tag
+# at the dispatched commit and advances the moving major tag (`v0`) to it, so
+# `@v0` consumers pick up the release automatically.
+#
+# Run it from the Actions tab ("Run workflow", from main). No local `git tag`.
+# This is separate from `release-cli` (which publishes the prebuilt binary as a
+# `cli-v*` GitHub Release); the actions download that binary at runtime.
+name: release-actions
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Action version to release, e.g. 0.6.0 (no leading v).'
+        required: true
+      move_major:
+        description: 'Advance the moving major tag (e.g. v0) to this release.'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency: release-actions
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Create version tag + advance moving major
+        env:
+          VERSION: ${{ inputs.version }}
+          MOVE_MAJOR: ${{ inputs.move_major }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::version must be X.Y.Z (got '$version')"
+            exit 1
+          fi
+          tag="v$version"
+          major="v${version%%.*}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::tag $tag already exists — bump the version"
+            exit 1
+          fi
+
+          git tag -a "$tag" -m "flutter-tools actions $tag"
+          git push origin "$tag"
+          echo "Released **$tag** at \`${GITHUB_SHA::7}\`" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$MOVE_MAJOR" = "true" ]; then
+            git tag -f -a "$major" -m "Moving tag: latest $major.x ($tag)"
+            git push -f origin "$major"
+            echo "Advanced **$major** → $tag" >> "$GITHUB_STEP_SUMMARY"
+          fi
