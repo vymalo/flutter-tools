@@ -10,6 +10,9 @@ name: release-cli
 
 on:
   push:
+    # TEMP CHEAT — testing the build matrix on the PR branch. REVERT to
+    # `tags: ['cli-v*']` before merge.
+    branches: ['**']
     tags: ['cli-v*']
 
 permissions:
@@ -50,6 +53,10 @@ jobs:
 
   release:
     needs: build
+    # TEMP CHEAT companion — only publish on real tags so branch-push test runs
+    # don't fail the tag assertion / create stray releases. REVERT with the
+    # trigger above.
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
