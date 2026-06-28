@@ -13,7 +13,7 @@ Optionally submits the version for review.
 | What you need | Details |
 |---|---|
 | **Runner** | macOS. |
-| **Run before this** | A built IPA ([`ios-build`](../ios-build)) and/or a screenshots folder ([`screenshots`](../screenshots)). **Dart on PATH** is also required (this action runs a small Dart CLI); the build/setup step provides it — on a standalone job add a Flutter/Dart setup first. |
+| **Run before this** | A built IPA ([`ios-build`](../ios-build)) and/or a screenshots folder ([`screenshots`](../screenshots)). No Dart/Flutter setup required — the action downloads a prebuilt CLI binary. (Dart on `PATH` is a harmless nice-to-have, not needed.) |
 | **Secrets / credentials** | App Store Connect **API key**: `asc-key-id`, `asc-issuer-id`, `asc-api-key-base64` (base64 of the `.p8`). |
 | **In your Apple account** | For **screenshots**, the app must have an **editable "Prepare for Submission" version** in App Store Connect — `deliver` attaches images to that draft, it doesn't create it. If it's missing you'll see *"Could not find a version to update"* (an ASC setup step, not a CI bug). Uploaded screenshots are routed to the right device slot **by their pixel size** — see [`screenshots`](../screenshots) for the resolution → slot table. |
 

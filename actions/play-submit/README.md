@@ -9,7 +9,7 @@ metadata/images/changelogs). Use it after [`android-build`](../android-build).
 | What you need | Details |
 |---|---|
 | **Runner** | Any (no Docker). Ruby is needed — either already on the runner, or set `setup-ruby: true` to install it. Fastlane is auto-installed if missing. |
-| **Run before this** | A signed `.aab` — typically [`android-build`](../android-build). **Also: Dart on PATH** — this action runs a small Dart CLI (`dart pub get` + `dart run`). An earlier `android-setup` (or any Flutter/Dart setup) in the same job provides it; on a bare upload-only job add one, or it fails with `dart: command not found`. |
+| **Run before this** | A signed `.aab` — typically [`android-build`](../android-build). No Dart/Flutter setup required — the action downloads a prebuilt CLI binary. (Dart on `PATH` is a harmless nice-to-have, not needed.) |
 | **Secrets / credentials** | A **Google Play service-account JSON** (base64 in `service-account-json-base64`, or plaintext in `service-account-json`). |
 | **In your Google Play account (one-time, you do this)** | 1) Create the app in the Play Console. 2) Create a service account in Google Cloud, download its JSON key, and **grant it access** in Play Console → Users & permissions (at least "Release to testing tracks"). 3) The app's **very first** production release must be created by hand — the API can't seed a brand-new listing. |
 

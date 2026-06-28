@@ -8,7 +8,7 @@ build (APK/AAB/IPA) or a screenshots zip somewhere you can grab later.
 
 | What you need | Details |
 |---|---|
-| **Runner** | Any (Linux or macOS). The AWS CLI is auto-installed if `to-s3: true` and it's missing. **S3 mode also needs Dart on `PATH`** (it runs a small Dart CLI to presign + upload) — a prior Flutter/Dart setup provides it; GitHub-Artifacts-only mode does not. |
+| **Runner** | Any (Linux or macOS). The AWS CLI is auto-installed if `to-s3: true` and it's missing. S3 mode runs a prebuilt CLI binary to presign + upload — downloaded automatically, no Dart/Flutter setup required. (Dart on `PATH` is a harmless nice-to-have.) |
 | **Run before this** | The file must exist (e.g. a build step's output path). |
 | **Secrets / credentials (only for S3)** | Standard AWS env vars on the step: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (or `AWS_DEFAULT_REGION`). For MinIO/self-hosted, also set `s3-endpoint`. GitHub-Artifacts mode needs **no** credentials. |
 

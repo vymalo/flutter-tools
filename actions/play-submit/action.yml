@@ -48,9 +48,12 @@ runs:
       shell: bash
       run: command -v fastlane >/dev/null 2>&1 || gem install fastlane --no-document --version '~>2.230'
 
+    - id: install
+      shell: bash
+      run: bash "${{ github.action_path }}/../../scripts/install-cli.sh"
+
     - name: Upload to Play
       shell: bash
-      working-directory: ${{ github.action_path }}/../..
       env:
         GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ inputs.service-account-json-base64 }}
         GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ inputs.service-account-json }}
@@ -62,7 +65,6 @@ runs:
         INPUT_ROLLOUT: ${{ inputs.rollout }}
       run: |
         set -euo pipefail
-        dart pub get
         args=(
           play-submit
           --aab "$INPUT_AAB"
@@ -74,4 +76,4 @@ runs:
         if [ -n "$INPUT_ROLLOUT" ]; then
           args+=(--rollout "$INPUT_ROLLOUT")
         fi
-        dart run bin/flutter_tools.dart "${args[@]}"
+        "${{ steps.install.outputs.cli }}" "${args[@]}"

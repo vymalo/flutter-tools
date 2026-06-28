@@ -36,16 +36,19 @@ outputs:
 runs:
   using: composite
   steps:
+    # Fetch the prebuilt CLI binary (no Dart SDK, no `dart pub get`). Separate
+    # step so its $GITHUB_OUTPUT path is readable by the stamp step below.
+    - id: install
+      shell: bash
+      run: bash "${{ github.action_path }}/../../scripts/install-cli.sh"
     - id: stamp
       shell: bash
-      working-directory: ${{ github.action_path }}/../..
       env:
         INPUT_WORKSPACE: ${{ inputs.workspace }}
         INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
         INPUT_BUILD_NUMBER: ${{ inputs.build-number }}
         INPUT_VERSION: ${{ inputs.version }}
       run: |
-        dart pub get
         args=(
           version-stamp
           --workspace "$INPUT_WORKSPACE"
@@ -53,4 +56,4 @@ runs:
           --build-number "$INPUT_BUILD_NUMBER"
         )
         [ -n "$INPUT_VERSION" ] && args+=(--version "$INPUT_VERSION")
-        dart run bin/flutter_tools.dart "${args[@]}"
+        "${{ steps.install.outputs.cli }}" "${args[@]}"
