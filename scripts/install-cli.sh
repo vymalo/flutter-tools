@@ -16,12 +16,28 @@ set -euo pipefail
 
 REPO="vymalo/flutter-tools"
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$script_dir/.." && pwd)"
+# When piped from stdin (curl | bash) there is no on-disk checkout, so BASH_SOURCE
+# is unreliable — fall back to "." and guard every repo-relative read below.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo .)"
+repo_root="$(cd "$script_dir/.." 2>/dev/null && pwd || echo .)"
 
+# Last-resort version when neither an arg, CLI_VERSION, an on-disk cli-version.txt,
+# nor FT_REF is available. Keep in sync with cli-version.txt.
+DEFAULT_CLI_VERSION="0.1.0"
+
+# Version precedence: explicit arg / CLI_VERSION → on-disk cli-version.txt (normal
+# checkout) → cli-version.txt fetched from the action ref (curl-pipe; FT_REF set by
+# the calling action = github.action_ref) → baked default.
 version="${1:-${CLI_VERSION:-}}"
 if [ -z "$version" ]; then
-  version="$(tr -d ' \t\n\r' < "$repo_root/cli-version.txt")"
+  if [ -f "$repo_root/cli-version.txt" ]; then
+    version="$(tr -d ' \t\n\r' < "$repo_root/cli-version.txt")"
+  elif [ -n "${FT_REF:-}" ]; then
+    version="$(curl --fail --silent --show-error --location --retry 3 \
+      "https://raw.githubusercontent.com/${REPO}/${FT_REF}/cli-version.txt" | tr -d ' \t\n\r')"
+  else
+    version="$DEFAULT_CLI_VERSION"
+  fi
 fi
 # Tolerate a leading `cli-v` / `v` so `v0.1.0` or `cli-v0.1.0` also resolve.
 version="${version#cli-v}"
