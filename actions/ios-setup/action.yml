@@ -17,7 +17,7 @@ inputs:
     description: 'Drop pubspec.lock + build_runner clean before the API build.'
     default: 'true'
   run-codegen:
-    default: 'true'
+    default: 'false'
   setup-flutter:
     default: 'true'
   setup-java:
