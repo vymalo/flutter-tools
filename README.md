@@ -119,7 +119,14 @@ Each action's `action.yml` documents every input; the most useful knobs:
   `s3-endpoint` (MinIO). Outputs: `s3-url` (presigned), `s3-key`.
 - **`codegen`** — `project-dir`, `api-dir`, `codegen-tool-dir`, `sdk-floor`,
   `clean`, `api-pubspec-template`. Tuned for an OpenAPI-generated client + a
-  layered `build_runner`; point the dirs at your layout.
+  layered `build_runner`; point the dirs at your layout. `generate-openapi`
+  (`auto`/`true`/`false`, default `auto`) controls the OpenAPI-client stage
+  (steps 1–3 below) — `auto` skips it when `codegen-tool-dir` doesn't exist on
+  disk, so a consumer with no generated OpenAPI client (or one that dropped it
+  entirely) gets just the app-level `build_runner` step instead of a
+  `dart pub get` failing in a directory that was never there. `android-setup`
+  and `ios-setup` pass the same input straight through to their own `codegen`
+  call.
 - **`screenshots`** — `platform`, `driver`/`target`, `locale`, `dart-defines`,
   and the **device matrix**: `android-devices` (`"avd:profile:class,…"`) and
   `ios-devices` (`"sim|label,…"`). The *simulator/AVD* picks the resolution;

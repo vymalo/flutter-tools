@@ -13,6 +13,13 @@ inputs:
   api-pubspec-template:
     description: 'Tracked pubspec template copied to <project-dir>/api/pubspec.yaml.'
     default: 'mobile/tool/api-pubspec.template.yaml'
+  generate-openapi:
+    description: >-
+      'auto' (default) skips the OpenAPI-client stage when the CLI's default
+      codegen-tool-dir (mobile/tool/openapi_codegen) doesn't exist on disk.
+      'true'/'false' force the decision either way. Only matters when
+      run-codegen is 'true'.
+    default: 'auto'
   clean:
     description: 'Drop pubspec.lock + build_runner clean before the API build.'
     default: 'true'
@@ -71,12 +78,14 @@ runs:
         INPUT_WORKSPACE: ${{ inputs.workspace }}
         INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
         INPUT_API_PUBSPEC_TEMPLATE: ${{ inputs.api-pubspec-template }}
+        INPUT_GENERATE_OPENAPI: ${{ inputs.generate-openapi }}
         INPUT_CLEAN: ${{ inputs.clean }}
       run: >-
         "${{ steps.install.outputs.cli }}" codegen
         --workspace "$INPUT_WORKSPACE"
         --project-dir "$INPUT_PROJECT_DIR"
         --api-pubspec-template "$INPUT_API_PUBSPEC_TEMPLATE"
+        --generate-openapi "$INPUT_GENERATE_OPENAPI"
         --$([ "$INPUT_CLEAN" = 'true' ] && echo 'clean' || echo 'no-clean')
 
     - name: Cache Bundler

@@ -308,6 +308,18 @@ class CodegenCommand extends Command<void> {
         help: 'Dir whose build_runner drives the OpenAPI Generator CLI.',
       )
       ..addOption(
+        'generate-openapi',
+        defaultsTo: 'auto',
+        allowed: ['auto', 'true', 'false'],
+        help:
+            'Whether to run the OpenAPI-client stage. "auto" (default) skips '
+            'it when --codegen-tool-dir does not exist on disk — a consumer '
+            'with no generated OpenAPI client gets just the app-level '
+            'build_runner step, instead of a confusing "No such file or '
+            'directory" from a command run in a directory that was never '
+            'there. "true"/"false" force the decision either way.',
+      )
+      ..addOption(
         'api-pubspec-template',
         defaultsTo: '',
         help:
@@ -352,11 +364,37 @@ class CodegenCommand extends Command<void> {
   @override
   Future<void> run() async {
     final a = argResults!;
+    final workspace = a.option('workspace')!;
+    final codegenToolDir = a.option('codegen-tool-dir')!;
+
+    final bool generateOpenapi;
+    switch (a.option('generate-openapi')) {
+      case 'true':
+        generateOpenapi = true;
+      case 'false':
+        generateOpenapi = false;
+        stdout.writeln(
+          'ℹ generate-openapi=false — skipping the OpenAPI-client stage.',
+        );
+      default: // 'auto'
+        final toolDirExists = Directory(
+          resolveIn(workspace, codegenToolDir),
+        ).existsSync();
+        generateOpenapi = toolDirExists;
+        if (!toolDirExists) {
+          stdout.writeln(
+            'ℹ generate-openapi=auto — $codegenToolDir does not exist under '
+            '$workspace, skipping the OpenAPI-client stage.',
+          );
+        }
+    }
+
     final config = CodegenConfig(
-      workspace: a.option('workspace')!,
+      workspace: workspace,
       projectDir: a.option('project-dir')!,
       apiDir: a.option('api-dir')!,
-      codegenToolDir: a.option('codegen-tool-dir')!,
+      codegenToolDir: codegenToolDir,
+      generateOpenapi: generateOpenapi,
       apiPubspecTemplate: a.option('api-pubspec-template')!,
       sdkFloor: a.option('sdk-floor')!,
       clean: a.flag('clean'),
