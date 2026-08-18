@@ -65,6 +65,45 @@ void main() {
       );
     });
 
+    test('generateOpenapi=false skips the OpenAPI-client stage entirely, '
+        'keeping only the app-level build', () {
+      final steps = planCodegen(
+        const CodegenConfig(workspace: '/w', generateOpenapi: false),
+      );
+      final labels = steps.map((s) => s.label).toList();
+
+      expect(labels, ['App flutter pub get', 'App build_runner build']);
+      expect(steps.whereType<PatchSdkFloorStep>(), isEmpty);
+      expect(steps.whereType<CopyFileStep>(), isEmpty);
+      expect(steps.whereType<DeleteFileStep>(), isEmpty);
+    });
+
+    test(
+      'generateOpenapi=false ignores clean/upgradeDartStyle/apiPubspecTemplate '
+      '(nothing left to apply them to)',
+      () {
+        final steps = planCodegen(
+          const CodegenConfig(
+            workspace: '/w',
+            generateOpenapi: false,
+            clean: true,
+            upgradeDartStyle: true,
+            apiPubspecTemplate: 'mobile/openapi/api-pubspec.yaml',
+          ),
+        );
+        final labels = steps.map((s) => s.label).toList();
+        expect(labels, ['App flutter pub get', 'App build_runner build']);
+      },
+    );
+
+    test('generateOpenapi defaults to true (unchanged default behaviour)', () {
+      final steps = planCodegen(const CodegenConfig(workspace: '/w'));
+      expect(
+        steps.map((s) => s.label),
+        contains('Generate OpenAPI client (Java CLI)'),
+      );
+    });
+
     test('custom build-runner args propagate to every build_runner build', () {
       final steps = planCodegen(
         const CodegenConfig(

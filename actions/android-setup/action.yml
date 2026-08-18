@@ -14,6 +14,11 @@ inputs:
     default: 'mobile/api'
   codegen-tool-dir:
     default: 'mobile/tool/openapi_codegen'
+  generate-openapi:
+    description: >-
+      'auto' (default) skips the OpenAPI-client stage when codegen-tool-dir
+      doesn't exist on disk. 'true'/'false' force the decision either way.
+    default: 'auto'
   sdk-floor:
     default: '>=3.12.0 <4.0.0'
   clean:
@@ -89,6 +94,7 @@ runs:
         INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
         INPUT_API_DIR: ${{ inputs.api-dir }}
         INPUT_CODEGEN_TOOL_DIR: ${{ inputs.codegen-tool-dir }}
+        INPUT_GENERATE_OPENAPI: ${{ inputs.generate-openapi }}
         INPUT_SDK_FLOOR: ${{ inputs.sdk-floor }}
         INPUT_CLEAN: ${{ inputs.clean }}
         INPUT_UPGRADE_DART_STYLE: ${{ inputs.upgrade-dart-style }}
@@ -98,6 +104,7 @@ runs:
         --project-dir "$INPUT_PROJECT_DIR"
         --api-dir "$INPUT_API_DIR"
         --codegen-tool-dir "$INPUT_CODEGEN_TOOL_DIR"
+        --generate-openapi "$INPUT_GENERATE_OPENAPI"
         --sdk-floor "$INPUT_SDK_FLOOR"
         --$([ "$INPUT_CLEAN" = 'true' ] && echo 'clean' || echo 'no-clean')
         --$([ "$INPUT_UPGRADE_DART_STYLE" = 'true' ] && echo 'upgrade-dart-style' || echo 'no-upgrade-dart-style')

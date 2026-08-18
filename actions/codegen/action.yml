@@ -18,6 +18,14 @@ inputs:
   codegen-tool-dir:
     description: 'Directory whose build_runner drives the OpenAPI Generator CLI.'
     default: 'mobile/tool/openapi_codegen'
+  generate-openapi:
+    description: >-
+      'auto' (default) skips the OpenAPI-client stage when codegen-tool-dir
+      doesn't exist on disk — a consumer with no generated OpenAPI client
+      just gets the app-level build_runner step, instead of a hard failure
+      from a command run in a directory that was never there. 'true'/'false'
+      force the decision either way.
+    default: 'auto'
   api-pubspec-template:
     description: >-
       Tracked pubspec template copied to <api-dir>/pubspec.yaml before resolve
@@ -89,6 +97,7 @@ runs:
         INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
         INPUT_API_DIR: ${{ inputs.api-dir }}
         INPUT_CODEGEN_TOOL_DIR: ${{ inputs.codegen-tool-dir }}
+        INPUT_GENERATE_OPENAPI: ${{ inputs.generate-openapi }}
         INPUT_API_PUBSPEC_TEMPLATE: ${{ inputs.api-pubspec-template }}
         INPUT_SDK_FLOOR: ${{ inputs.sdk-floor }}
         INPUT_CLEAN: ${{ inputs.clean }}
@@ -99,6 +108,7 @@ runs:
         --project-dir "$INPUT_PROJECT_DIR"
         --api-dir "$INPUT_API_DIR"
         --codegen-tool-dir "$INPUT_CODEGEN_TOOL_DIR"
+        --generate-openapi "$INPUT_GENERATE_OPENAPI"
         --api-pubspec-template "$INPUT_API_PUBSPEC_TEMPLATE"
         --sdk-floor "$INPUT_SDK_FLOOR"
         --$([ "$INPUT_CLEAN" = 'true' ] && echo 'clean' || echo 'no-clean')

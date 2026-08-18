@@ -10,10 +10,14 @@ generated `*.g.dart` → app `build_runner` (riverpod / drift / go_router).
 | **Runner** | Any — Linux or macOS, GitHub-hosted or self-hosted. |
 | **Run before this** | `actions/checkout` (so your code is on disk). That's it — this action sets up Flutter + Java for you (toggle off with `setup-flutter: false` / `setup-java: false` if an earlier step already did). |
 | **Secrets** | None. |
-| **In your repo** | A layered codegen layout: a Flutter app dir, a generated-client package dir, and a "tool" dir whose `build_runner` drives the OpenAPI Generator. Point the `*-dir` inputs at yours. If you don't use OpenAPI, you probably want the plain `dart run build_runner build` instead of this action. |
+| **In your repo** | A layered codegen layout: a Flutter app dir, a generated-client package dir, and a "tool" dir whose `build_runner` drives the OpenAPI Generator. Point the `*-dir` inputs at yours. If you don't use OpenAPI at all, this action still works — `generate-openapi: auto` (the default) detects that `codegen-tool-dir` doesn't exist and runs just the app-level `build_runner` step. |
 
 > **Defaults assume `mobile/`.** If your app lives at the repo root or elsewhere,
 > set `project-dir`, `api-dir`, and `codegen-tool-dir` accordingly.
+>
+> **No OpenAPI client?** Leave `generate-openapi` at its `auto` default (or set
+> it to `false` explicitly) — the OpenAPI-client stage is skipped and only the
+> app-level `flutter pub get` + `build_runner build` run.
 
 ## Usage
 
@@ -34,6 +38,7 @@ generated `*.g.dart` → app `build_runner` (riverpod / drift / go_router).
 | `project-dir` | no | `mobile` | Your Flutter app directory. |
 | `api-dir` | no | `mobile/api` | The generated OpenAPI client package. |
 | `codegen-tool-dir` | no | `mobile/tool/openapi_codegen` | Dir whose `build_runner` runs the OpenAPI Generator. |
+| `generate-openapi` | no | `auto` | `auto`/`true`/`false`. `auto` skips the OpenAPI-client stage when `codegen-tool-dir` doesn't exist on disk. |
 | `clean` | no | `true` | `build_runner clean` + drop `pubspec.lock` first (avoids stale `*.g.dart`). |
 | `setup-flutter` / `setup-java` | no | `true` | Let this action install the toolchain. Set `false` if a prior step did. |
 | `flutter-version` / `java-version` | no | `3.44.2` / `21` | Versions used when the setups run. |
