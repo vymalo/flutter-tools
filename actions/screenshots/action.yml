@@ -70,9 +70,12 @@ runs:
           bash "$installer"
         else
           # Podman does not translate the host action path into the container.
+          remote_installer="$(mktemp)"
+          trap 'rm -f "$remote_installer"' EXIT
           curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
-            "https://raw.githubusercontent.com/vymalo/flutter-tools/${FT_REF}/scripts/install-cli.sh" \
-            | bash -s --
+            -o "$remote_installer" \
+            "https://raw.githubusercontent.com/vymalo/flutter-tools/${FT_REF}/scripts/install-cli.sh"
+          bash "$remote_installer"
         fi
 
     - id: shots
