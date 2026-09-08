@@ -24,6 +24,7 @@ ordering matters (below).
 | What changed | Bump `cli-version.txt`? | Run `release-cli`? | Run `release-actions`? |
 |---|---|---|---|
 | Dart code (`lib/`, `bin/`) | **Yes** | **Yes** | Yes |
+| Supported CLI platform matrix | **Yes** | **Yes** | Yes |
 | Action YAML, scripts, docs, workflows only | No | No | Yes |
 | Nothing shippable (tests, internal docs) | No | No | No |
 
@@ -38,8 +39,9 @@ ordering matters (below).
    (e.g. `0.1.0` → `0.2.0`). Open a PR with your code change, get it green, merge
    to `main`.
 2. **Publish the binary.** Actions tab → **release-cli** → **Run workflow** (from
-   `main`). It compiles for `linux-x64`, `linux-arm64`, `macos-arm64` and creates
-   the `cli-v0.2.0` Release + `SHA256SUMS`. Wait for it to finish.
+   `main`). It compiles for `linux-x64`, `linux-arm64`, `macos-arm64`, and
+   `macos-x64`, then creates the `cli-v0.2.0` Release + `SHA256SUMS`. Wait for it
+   to finish.
 3. **Cut the action version.** Actions tab → **release-actions** → **Run
    workflow**: `version = 0.7.0`, `move_major = true`. It tags `v0.7.0` at `main`
    and advances `v0` → `main`.
@@ -75,10 +77,10 @@ After a release, confirm a real consumer picks it up. In a repo that pins `@v0`
 (e.g. vymalo-shop), trigger a workflow and check the logs:
 
 - A migrated action shows an **`install-cli.sh`** step that downloads + checksums
-  the binary into a `…/_temp/vymalo-flutter-tools.XXXX/flutter-tools` path, then
-  execs it — **no `dart pub get`**.
+  the binary into a job-scoped `…/_temp/vymalo-flutter-tools/` path, then execs
+  it — **no `dart pub get`**.
 - The run is green on each runner OS/arch you target (the published assets must
-  cover them: `linux-x64`/`linux-arm64`/`macos-arm64` today).
+  cover them: `linux-x64`/`linux-arm64`/`macos-arm64`/`macos-x64` today).
 
 ## Roll back
 

@@ -23,7 +23,7 @@ repo_root="$(cd "$script_dir/.." 2>/dev/null && pwd || echo .)"
 
 # Last-resort version when neither an arg, CLI_VERSION, an on-disk cli-version.txt,
 # nor FT_REF is available. Keep in sync with cli-version.txt.
-DEFAULT_CLI_VERSION="0.1.0"
+DEFAULT_CLI_VERSION="0.2.1"
 
 # Version precedence: explicit arg / CLI_VERSION → on-disk cli-version.txt (normal
 # checkout) → cli-version.txt fetched from the action ref (curl-pipe; FT_REF set by
@@ -33,7 +33,7 @@ if [ -z "$version" ]; then
   if [ -f "$repo_root/cli-version.txt" ]; then
     version="$(tr -d ' \t\n\r' < "$repo_root/cli-version.txt")"
   elif [ -n "${FT_REF:-}" ]; then
-    version="$(curl --fail --silent --show-error --location --retry 3 \
+    version="$(curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
       "https://raw.githubusercontent.com/${REPO}/${FT_REF}/cli-version.txt" | tr -d ' \t\n\r')"
   else
     version="$DEFAULT_CLI_VERSION"
@@ -88,8 +88,10 @@ if [ -x "$bin" ]; then
 else
   tmp="$(mktemp "$bin_dir/.download.XXXXXX")"
   sums="$(mktemp "$bin_dir/.sha256sums.XXXXXX")"
-  curl --fail --silent --show-error --location --retry 3 -o "$tmp" "$base/$asset"
-  curl --fail --silent --show-error --location --retry 3 -o "$sums" "$base/SHA256SUMS"
+  curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+    -o "$tmp" "$base/$asset"
+  curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+    -o "$sums" "$base/SHA256SUMS"
 
   expected="$(awk -v f="$asset" '{sub(/\r$/, "", $2); sub(/^\*/, "", $2); if ($2 == f) print $1}' "$sums")"
   if [ -z "$expected" ]; then
