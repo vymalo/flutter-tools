@@ -26,15 +26,21 @@ repo_root="$(cd "$script_dir/.." 2>/dev/null && pwd || echo .)"
 DEFAULT_CLI_VERSION="0.2.1"
 
 # Version precedence: explicit arg / CLI_VERSION → on-disk cli-version.txt (normal
-# checkout) → cli-version.txt fetched from the action ref (curl-pipe; FT_REF set by
-# the calling action = github.action_ref) → baked default.
+# checkout) → cli-version.txt fetched from the action ref (FT_REF set by the
+# calling action = github.action_ref) → baked default.
 version="${1:-${CLI_VERSION:-}}"
 if [ -z "$version" ]; then
   if [ -f "$repo_root/cli-version.txt" ]; then
     version="$(tr -d ' \t\n\r' < "$repo_root/cli-version.txt")"
   elif [ -n "${FT_REF:-}" ]; then
-    version="$(curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
-      "https://raw.githubusercontent.com/${REPO}/${FT_REF}/cli-version.txt" | tr -d ' \t\n\r')"
+    version_file="$(mktemp "${TMPDIR:-/tmp}/vymalo-flutter-tools-version.XXXXXX")"
+    trap 'rm -f "${version_file:-}"' EXIT
+    curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+      -o "$version_file" \
+      "https://raw.githubusercontent.com/${REPO}/${FT_REF}/cli-version.txt"
+    version="$(tr -d ' \t\n\r' < "$version_file")"
+    rm -f "$version_file"
+    version_file=
   else
     version="$DEFAULT_CLI_VERSION"
   fi
