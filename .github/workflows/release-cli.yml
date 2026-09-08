@@ -25,9 +25,10 @@ jobs:
         include:
           - { runner: ubuntu-latest, asset: flutter-tools-linux-x64 }
           - { runner: ubuntu-24.04-arm, asset: flutter-tools-linux-arm64 }
-          # macos-15 is the arm64 (Apple Silicon) image; Intel is macos-15-intel.
-          # We don't ship a macОS x64 binary — GitHub macOS runners are arm64.
+          # macos-15 is arm64 (Apple Silicon); macos-15-intel builds x64 for
+          # self-hosted Intel runners and Apple Silicon runners using Rosetta.
           - { runner: macos-15, asset: flutter-tools-macos-arm64 }
+          - { runner: macos-15-intel, asset: flutter-tools-macos-x64 }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7

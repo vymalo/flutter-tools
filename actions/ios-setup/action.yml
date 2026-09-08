@@ -61,15 +61,19 @@ runs:
       id: install
       shell: bash
       env:
+        FT_ACTION_PATH: ${{ github.action_path }}
         FT_REF: ${{ github.action_ref }}
       run: |
         set -euo pipefail
-        # github.action_path is NOT translated into the container by the GH
-        # runner under podman → a path-based call ENOENTs. Fetch the installer
-        # from the pinned ref (container/runtime-agnostic).
-        curl --fail --silent --show-error --location --retry 3 \
-          "https://raw.githubusercontent.com/vymalo/flutter-tools/${FT_REF}/scripts/install-cli.sh" \
-          | bash -s --
+        installer="$FT_ACTION_PATH/../../scripts/install-cli.sh"
+        if [ -f "$installer" ]; then
+          bash "$installer"
+        else
+          # Podman does not translate the host action path into the container.
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            "https://raw.githubusercontent.com/vymalo/flutter-tools/${FT_REF}/scripts/install-cli.sh" \
+            | bash -s --
+        fi
 
     - name: Layered codegen
       if: ${{ inputs.run-codegen == 'true' }}
