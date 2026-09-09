@@ -72,6 +72,38 @@ void main() {
       expect(steps.where((s) => s.label.contains('appbundle')), isEmpty);
     });
 
+    test('flavor is passed to every build and names the artifacts', () {
+      final steps = planAndroidBuild(
+        const AndroidBuildConfig(
+          workspace: '/w',
+          signed: true,
+          flavor: 'prod',
+          buildNumber: '7',
+        ),
+      );
+      expect(steps.map((s) => s.label), [
+        'Write android/key.properties',
+        'flutter build apk (release, flavor prod)',
+        'flutter build appbundle (release, flavor prod)',
+        'Remove android/key.properties',
+      ]);
+      for (final r in steps.whereType<RunStep>()) {
+        expect(r.args, contains('--flavor=prod'));
+      }
+      expect(
+        androidArtifactPath(AndroidArtifact.apk, signed: true, flavor: 'prod'),
+        'build/app/outputs/flutter-apk/app-prod-release.apk',
+      );
+      expect(
+        androidArtifactPath(AndroidArtifact.apk, signed: false, flavor: 'dev'),
+        'build/app/outputs/flutter-apk/app-dev-debug.apk',
+      );
+      expect(
+        androidArtifactPath(AndroidArtifact.aab, signed: true, flavor: 'prod'),
+        'build/app/outputs/bundle/prodRelease/app-prod-release.aab',
+      );
+    });
+
     test('artifact paths differ by signing', () {
       expect(
         androidArtifactPath(AndroidArtifact.apk, signed: true),

@@ -151,6 +151,12 @@ class IosBuildCommand extends Command<void> {
         'dart-define',
         help: 'KEY=VALUE, repeatable → --dart-define=KEY=VALUE.',
       )
+      ..addOption(
+        'flavor',
+        help:
+            'Flutter flavor (flutter build ipa --flavor): builds the Xcode '
+            'scheme of that name instead of Runner.',
+      )
       ..addOption('flutter', defaultsTo: 'flutter')
       ..addOption('fastlane', defaultsTo: 'fastlane')
       ..addFlag('verbose', defaultsTo: false)
@@ -237,6 +243,7 @@ class IosBuildCommand extends Command<void> {
       keychainPath: keychainPath,
       keychainPassword: keychainPassword,
       dartDefines: a.multiOption('dart-define'),
+      flavor: a.option('flavor'),
       flutter: a.option('flutter')!,
       fastlane: a.option('fastlane')!,
     );
@@ -428,6 +435,12 @@ class AndroidBuildCommand extends Command<void> {
         'dart-define',
         help: 'KEY=VALUE, repeatable → --dart-define=KEY=VALUE.',
       )
+      ..addOption(
+        'flavor',
+        help:
+            'Gradle product flavor (flutter build --flavor). Required once the '
+            'app declares productFlavors; also names the output files.',
+      )
       ..addOption('flutter', defaultsTo: 'flutter')
       ..addFlag(
         'verbose',
@@ -474,6 +487,7 @@ class AndroidBuildCommand extends Command<void> {
       buildNumber: a.option('build-number'),
       artifacts: artifacts,
       dartDefines: a.multiOption('dart-define'),
+      flavor: a.option('flavor'),
       flutter: a.option('flutter')!,
     );
 
@@ -505,13 +519,13 @@ class AndroidBuildCommand extends Command<void> {
     if (c.artifacts.contains(AndroidArtifact.apk)) {
       lines.add(
         'apk-path='
-        '${resolveIn(appDir, androidArtifactPath(AndroidArtifact.apk, signed: c.signed))}',
+        '${resolveIn(appDir, androidArtifactPath(AndroidArtifact.apk, signed: c.signed, flavor: c.flavor))}',
       );
     }
     if (c.signed && c.artifacts.contains(AndroidArtifact.aab)) {
       lines.add(
         'aab-path='
-        '${resolveIn(appDir, androidArtifactPath(AndroidArtifact.aab, signed: c.signed))}',
+        '${resolveIn(appDir, androidArtifactPath(AndroidArtifact.aab, signed: c.signed, flavor: c.flavor))}',
       );
     }
     _emitOutput({

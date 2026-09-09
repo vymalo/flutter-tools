@@ -23,7 +23,7 @@ repo_root="$(cd "$script_dir/.." 2>/dev/null && pwd || echo .)"
 
 # Last-resort version when neither an arg, CLI_VERSION, an on-disk cli-version.txt,
 # nor FT_REF is available. Keep in sync with cli-version.txt.
-DEFAULT_CLI_VERSION="0.2.1"
+DEFAULT_CLI_VERSION="0.3.0"
 
 # Version precedence: explicit arg / CLI_VERSION → on-disk cli-version.txt (normal
 # checkout) → cli-version.txt fetched from the action ref (FT_REF set by the

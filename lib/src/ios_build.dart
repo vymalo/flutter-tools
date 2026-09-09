@@ -23,12 +23,18 @@ class IosBuildConfig {
     required this.keychainPath,
     required this.keychainPassword,
     this.dartDefines = const [],
+    this.flavor,
     this.flutter = 'flutter',
     this.fastlane = 'fastlane',
   });
 
   final String workspace;
   final String projectDir;
+
+  /// Flutter flavor (`flutter build ipa --flavor`): the Xcode scheme of that
+  /// name is built. Null → the default `Runner` scheme. The archive path does
+  /// not change with the flavor (Flutter names it after the project).
+  final String? flavor;
 
   /// Bundle identifier, e.g. `com.vymalo.vymalo`.
   final String appId;
@@ -240,7 +246,14 @@ List<Step> planIosBuild(IosBuildConfig c) {
     RunStep(
       label: 'flutter build ipa (release, --no-codesign)',
       executable: c.flutter,
-      args: ['build', 'ipa', '--release', '--no-codesign', ...defines],
+      args: [
+        'build',
+        'ipa',
+        '--release',
+        '--no-codesign',
+        if (c.flavor != null && c.flavor!.isNotEmpty) '--flavor=${c.flavor}',
+        ...defines,
+      ],
       workingDir: appDir,
     ),
     RunStep(

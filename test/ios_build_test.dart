@@ -70,6 +70,32 @@ void main() {
       expect(build.workingDir, '/w/mobile');
     });
 
+    test('flavor selects the scheme via --flavor, archive path unchanged', () {
+      final cfg = IosBuildConfig(
+        workspace: '/w',
+        appId: 'com.vymalo.vymalo',
+        teamId: 'TEAM123',
+        profileName: 'Vymalo App Store',
+        certPath: '/tmp/c.p12',
+        certPassword: 'p12pass',
+        profilePath: '/tmp/p.mobileprovision',
+        keychainPath: '/tmp/ci.keychain-db',
+        keychainPassword: 'kcpass',
+        flavor: 'prod',
+      );
+      final steps = planIosBuild(cfg).whereType<RunStep>();
+      final build = steps.firstWhere((s) => s.executable == 'flutter');
+      expect(build.args, [
+        'build',
+        'ipa',
+        '--release',
+        '--no-codesign',
+        '--flavor=prod',
+      ]);
+      final x = steps.firstWhere((s) => s.executable == 'xcodebuild');
+      expect(x.args, contains('/w/mobile/build/ios/archive/Runner.xcarchive'));
+    });
+
     test('xcodebuild exports the archive to build/ios/ipa', () {
       final x = planIosBuild(
         _cfg(),

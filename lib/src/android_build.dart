@@ -18,11 +18,18 @@ class AndroidBuildConfig {
     this.buildNumber,
     this.artifacts = const {AndroidArtifact.apk, AndroidArtifact.aab},
     this.dartDefines = const [],
+    this.flavor,
     this.flutter = 'flutter',
   });
 
   final String workspace;
   final String projectDir;
+
+  /// Gradle product flavor (`flutter build --flavor`). Null → no flavor. Once an
+  /// app declares `productFlavors`, Flutter refuses to build without one, and the
+  /// output file names gain the flavor (`app-prod-release.apk`,
+  /// `bundle/prodRelease/app-prod-release.aab`).
+  final String? flavor;
 
   /// True when a keystore is available (release signing); false → debug APK.
   final bool signed;
@@ -46,14 +53,23 @@ class AndroidBuildConfig {
 }
 
 /// The standard Flutter output path for each artifact, relative to the app dir.
-String androidArtifactPath(AndroidArtifact a, {required bool signed}) =>
-    switch (a) {
-      AndroidArtifact.apk =>
-        signed
-            ? 'build/app/outputs/flutter-apk/app-release.apk'
-            : 'build/app/outputs/flutter-apk/app-debug.apk',
-      AndroidArtifact.aab => 'build/app/outputs/bundle/release/app-release.aab',
-    };
+/// With a [flavor], Flutter names files `app-<flavor>-<mode>.<ext>` and puts the
+/// bundle under `bundle/<flavor>Release/` (AGP's `<flavor><BuildType>` variant dir).
+String androidArtifactPath(
+  AndroidArtifact a, {
+  required bool signed,
+  String? flavor,
+}) {
+  final f = (flavor == null || flavor.isEmpty) ? '' : '-$flavor';
+  final aabDir = (flavor == null || flavor.isEmpty)
+      ? 'release'
+      : '${flavor}Release';
+  return switch (a) {
+    AndroidArtifact.apk =>
+      'build/app/outputs/flutter-apk/app$f-${signed ? 'release' : 'debug'}.apk',
+    AndroidArtifact.aab => 'build/app/outputs/bundle/$aabDir/app$f-release.aab',
+  };
+}
 
 /// Build the plan: write signing config → `flutter build …` per artifact →
 /// remove the signing config. The AAB is only built when signed.
@@ -65,9 +81,15 @@ List<Step> planAndroidBuild(AndroidBuildConfig c) {
       ? <String>[]
       : ['--build-number=${c.buildNumber}'];
 
+  final flavor = (c.flavor == null || c.flavor!.isEmpty)
+      ? <String>[]
+      : ['--flavor=${c.flavor}'];
+  final flavorLabel = flavor.isEmpty ? '' : ', flavor ${c.flavor}';
+
   List<String> buildArgs(String sub, String mode) => [
     sub,
     mode,
+    ...flavor,
     ...buildNumber,
     ...defines,
   ];
@@ -86,7 +108,8 @@ List<Step> planAndroidBuild(AndroidBuildConfig c) {
 
     if (c.artifacts.contains(AndroidArtifact.apk))
       RunStep(
-        label: 'flutter build apk (${c.signed ? "release" : "debug"})',
+        label:
+            'flutter build apk (${c.signed ? "release" : "debug"}$flavorLabel)',
         executable: c.flutter,
         args: [
           'build',
@@ -98,7 +121,7 @@ List<Step> planAndroidBuild(AndroidBuildConfig c) {
     // A release AAB needs signing; skip it on an unsigned build.
     if (c.signed && c.artifacts.contains(AndroidArtifact.aab))
       RunStep(
-        label: 'flutter build appbundle (release)',
+        label: 'flutter build appbundle (release$flavorLabel)',
         executable: c.flutter,
         args: ['build', ...buildArgs('appbundle', '--release')],
         workingDir: appDir,
