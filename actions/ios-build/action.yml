@@ -32,6 +32,11 @@ inputs:
   dart-defines:
     description: 'One KEY=VALUE per line → --dart-define for each.'
     default: ''
+  flavor:
+    description: >-
+      Flutter flavor (flutter build ipa --flavor): builds the Xcode scheme of that
+      name instead of Runner. Empty = no flavor.
+    default: ''
 
 outputs:
   ipa-path:
@@ -73,6 +78,7 @@ runs:
         INPUT_PROJECT_DIR: ${{ inputs.project-dir }}
         INPUT_APP_ID: ${{ inputs.app-id }}
         INPUT_DART_DEFINES: ${{ inputs.dart-defines }}
+        INPUT_FLAVOR: ${{ inputs.flavor }}
       run: |
         set -euo pipefail
         args=(
@@ -81,6 +87,9 @@ runs:
           --project-dir "$INPUT_PROJECT_DIR"
           --app-id "$INPUT_APP_ID"
         )
+        if [ -n "$INPUT_FLAVOR" ]; then
+          args+=(--flavor "$INPUT_FLAVOR")
+        fi
         # One --dart-define per non-empty line of the dart-defines input.
         while IFS= read -r line; do
           [ -n "$line" ] && args+=(--dart-define "$line")

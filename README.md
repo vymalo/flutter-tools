@@ -110,7 +110,8 @@ jobs:
 
 Each action's `action.yml` documents every input; the most useful knobs:
 
-- **`android-build`** — `artifacts: apk|aab|both`, `dart-defines` (one `KEY=VALUE`
+- **`ios-build`** — `flavor` (builds the Xcode scheme of that name instead of `Runner`); see `actions/ios-build/action.yml` for the signing inputs.
+- **`android-build`** — `artifacts: apk|aab|both`, `flavor` (Gradle product flavor; required once the app declares `productFlavors`, and the artifact paths follow Flutter's flavored names), `dart-defines` (one `KEY=VALUE`
   per line), all signing inputs (omit them → unsigned debug APK). Outputs:
   `apk-path`, `aab-path`, `signed`.
 - **`play-submit`** — `track`, `release-status` (`completed|draft|halted|inProgress`),

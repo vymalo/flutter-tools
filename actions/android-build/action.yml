@@ -19,6 +19,11 @@ inputs:
   dart-defines:
     description: 'One KEY=VALUE per line → --dart-define for each.'
     default: ''
+  flavor:
+    description: >-
+      Gradle product flavor (flutter build --flavor). Required once the app
+      declares productFlavors; the artifact paths follow Flutter's flavored names.
+    default: ''
   keystore-base64:
     description: 'base64 of the signing keystore. Empty → unsigned debug APK.'
     default: ''
@@ -75,6 +80,7 @@ runs:
         INPUT_ARTIFACTS: ${{ inputs.artifacts }}
         INPUT_BUILD_NUMBER: ${{ inputs.build-number }}
         INPUT_DART_DEFINES: ${{ inputs.dart-defines }}
+        INPUT_FLAVOR: ${{ inputs.flavor }}
       run: |
         set -euo pipefail
         args=(
@@ -85,6 +91,9 @@ runs:
         )
         if [ -n "$INPUT_BUILD_NUMBER" ]; then
           args+=(--build-number "$INPUT_BUILD_NUMBER")
+        fi
+        if [ -n "$INPUT_FLAVOR" ]; then
+          args+=(--flavor "$INPUT_FLAVOR")
         fi
         # One --dart-define per non-empty line of the dart-defines input.
         while IFS= read -r line; do
