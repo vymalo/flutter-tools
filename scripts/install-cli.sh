@@ -29,9 +29,12 @@ DEFAULT_CLI_VERSION="0.2.1"
 # checkout) → cli-version.txt fetched from the action ref (FT_REF set by the
 # calling action = github.action_ref) → baked default.
 version="${1:-${CLI_VERSION:-}}"
+version_source="the script argument"
+[ -n "${1:-}" ] || version_source="the CLI_VERSION environment variable"
 if [ -z "$version" ]; then
   if [ -f "$repo_root/cli-version.txt" ]; then
     version="$(tr -d ' \t\n\r' < "$repo_root/cli-version.txt")"
+    version_source="cli-version.txt in the checkout at $repo_root"
   elif [ -n "${FT_REF:-}" ]; then
     version_file="$(mktemp "${TMPDIR:-/tmp}/vymalo-flutter-tools-version.XXXXXX")"
     trap 'rm -f "${version_file:-}"' EXIT
@@ -41,8 +44,10 @@ if [ -z "$version" ]; then
     version="$(tr -d ' \t\n\r' < "$version_file")"
     rm -f "$version_file"
     version_file=
+    version_source="cli-version.txt at actions ref ${FT_REF}"
   else
     version="$DEFAULT_CLI_VERSION"
+    version_source="this script's built-in default"
   fi
 fi
 # Tolerate a leading `cli-v` / `v` so `v0.1.0` or `cli-v0.1.0` also resolve.
@@ -94,10 +99,22 @@ if [ -x "$bin" ]; then
 else
   tmp="$(mktemp "$bin_dir/.download.XXXXXX")"
   sums="$(mktemp "$bin_dir/.sha256sums.XXXXXX")"
-  curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
-    -o "$tmp" "$base/$asset"
-  curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
-    -o "$sums" "$base/SHA256SUMS"
+  # Every actions tag pins the CLI release named in its cli-version.txt, so a tag only
+  # works while that exact cli-v* release stays published. When it does not, say which
+  # release, which ref pinned it, and what to do - a bare `curl: (22) 404` cost a
+  # downstream repo most of a night on 2026-09-09 (v0.11.0 -> cli-v0.2.0, gone).
+  fetch_release_file() {
+    local url="$1" dest="$2" code
+    code="$(curl --silent --show-error --location --retry 3 --retry-all-errors -o "$dest" -w '%{http_code}' "$url")" || code="000"
+    if [ "$code" != "200" ]; then
+      rm -f "$dest"
+      echo "::error::flutter-tools CLI release ${tag} has no downloadable $(basename "$url") (HTTP ${code} from ${url})." >&2
+      echo "CLI version ${version} came from ${version_source}. Published CLI releases: https://github.com/${REPO}/releases. Either set CLI_VERSION to a published cli-v* version, or use an actions tag whose cli-version.txt names one - and never retire a cli-v* release that a tagged action still pins." >&2
+      exit 1
+    fi
+  }
+  fetch_release_file "$base/$asset" "$tmp"
+  fetch_release_file "$base/SHA256SUMS" "$sums"
 
   expected="$(awk -v f="$asset" '{sub(/\r$/, "", $2); sub(/^\*/, "", $2); if ($2 == f) print $1}' "$sums")"
   if [ -z "$expected" ]; then
