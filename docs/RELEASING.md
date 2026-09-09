@@ -102,3 +102,19 @@ After a release, confirm a real consumer picks it up. In a repo that pins `@v0`
   [`.github/workflows/release-cli.yml`](../.github/workflows/release-cli.yml)
   (`dart compile exe` can't cross-compile) and re-release, or
   `install-cli.sh` will 404 for that OS/arch.
+
+### A tagged action's CLI release must stay published
+
+An actions tag (`v0.11.0`) pins the CLI release named in its `cli-version.txt`
+(`cli-v0.2.0`), and `scripts/install-cli.sh` downloads exactly that release every time the
+tag is used. Deleting or replacing a `cli-v*` release therefore breaks every actions tag
+that pins it, on its next run, with no change on the consumer's side. On 2026-09-09
+`cli-v0.2.0` stopped resolving while `v0.11.0` still named it, and every `@v0.11.0`
+consumer failed with `curl: (22) 404` before running a single build command.
+
+Two guards hold this now: `release-actions` refuses to cut a tag whose `cli-version.txt`
+names an unpublished CLI release (run `release-cli` first), and `install-cli.sh` says which
+release and which ref are involved when it happens anyway. Consumers can pin past a broken
+tag with `CLI_VERSION=<published version>` in the workflow environment. Cutting a new CLI
+release is always safe; retiring one is not until every tag that pins it has been
+superseded.
