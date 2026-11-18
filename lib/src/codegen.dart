@@ -6,9 +6,9 @@ import 'step.dart';
 class CodegenConfig {
   const CodegenConfig({
     required this.workspace,
-    this.projectDir = 'mobile',
-    this.apiDir = 'mobile/api',
-    this.codegenToolDir = 'mobile/tool/openapi_codegen',
+    this.projectDir = '.',
+    this.apiDir = 'api',
+    this.codegenToolDir = 'tool/openapi_codegen',
     this.generateOpenapi = true,
     this.apiPubspecTemplate = '',
     this.sdkFloor = '>=3.12.0 <4.0.0',

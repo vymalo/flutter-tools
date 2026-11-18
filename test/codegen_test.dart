@@ -23,14 +23,40 @@ void main() {
     test('resolves relative dirs against the workspace', () {
       final steps = planCodegen(const CodegenConfig(workspace: '/w'));
       final toolGet = steps.whereType<RunStep>().first;
-      expect(toolGet.workingDir, '/w/mobile/tool/openapi_codegen');
+      expect(toolGet.workingDir, '/w/tool/openapi_codegen');
 
       final appGet = steps.whereType<RunStep>().firstWhere(
         (s) => s.label == 'App flutter pub get',
       );
-      expect(appGet.workingDir, '/w/mobile');
+      expect(appGet.workingDir, '/w');
       expect(appGet.executable, 'flutter');
     });
+
+    test(
+      'honours explicit monorepo projectDir, apiDir, and codegenToolDir',
+      () {
+        final steps = planCodegen(
+          const CodegenConfig(
+            workspace: '/w',
+            projectDir: 'apps/mobile',
+            apiDir: 'apps/mobile/api',
+            codegenToolDir: 'apps/mobile/tool/openapi_codegen',
+          ),
+        );
+        final toolGet = steps.whereType<RunStep>().first;
+        expect(toolGet.workingDir, '/w/apps/mobile/tool/openapi_codegen');
+
+        final apiGet = steps.whereType<RunStep>().firstWhere(
+          (s) => s.label == 'API pub get',
+        );
+        expect(apiGet.workingDir, '/w/apps/mobile/api');
+
+        final appGet = steps.whereType<RunStep>().firstWhere(
+          (s) => s.label == 'App flutter pub get',
+        );
+        expect(appGet.workingDir, '/w/apps/mobile');
+      },
+    );
 
     test('a pubspec template replaces the SDK-floor patch with a copy', () {
       final steps = planCodegen(
@@ -42,7 +68,7 @@ void main() {
       expect(steps.whereType<PatchSdkFloorStep>(), isEmpty);
       final copy = steps.whereType<CopyFileStep>().single;
       expect(copy.from, '/w/mobile/openapi/api-pubspec.yaml');
-      expect(copy.to, '/w/mobile/api/pubspec.yaml');
+      expect(copy.to, '/w/api/pubspec.yaml');
     });
 
     test('clean=false drops the lock-delete + build_runner clean steps', () {

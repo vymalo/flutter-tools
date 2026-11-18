@@ -12,7 +12,7 @@ inputs:
   workspace:
     default: ${{ github.workspace }}
   project-dir:
-    default: 'mobile'
+    default: '.'
   platform:
     description: 'android | ios | both.'
     default: 'both'

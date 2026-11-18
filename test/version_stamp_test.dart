@@ -11,7 +11,7 @@ void main() {
       );
       expect(steps, hasLength(1));
       final patch = steps.single as PatchVersionStep;
-      expect(patch.path, '/w/mobile/pubspec.yaml');
+      expect(patch.path, '/w/pubspec.yaml');
       expect(patch.buildNumber, '42');
     });
 
@@ -24,6 +24,18 @@ void main() {
         ),
       );
       expect((steps.single as PatchVersionStep).path, '/w/app/pubspec.yaml');
+
+      final monorepoSteps = planVersionStamp(
+        const VersionStampConfig(
+          workspace: '/w',
+          projectDir: 'apps/mobile',
+          buildNumber: '8',
+        ),
+      );
+      expect(
+        (monorepoSteps.single as PatchVersionStep).path,
+        '/w/apps/mobile/pubspec.yaml',
+      );
     });
 
     test('passes the marketing-version override through to the step', () {

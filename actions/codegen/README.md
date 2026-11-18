@@ -12,8 +12,9 @@ generated `*.g.dart` → app `build_runner` (riverpod / drift / go_router).
 | **Secrets** | None. |
 | **In your repo** | A layered codegen layout: a Flutter app dir, a generated-client package dir, and a "tool" dir whose `build_runner` drives the OpenAPI Generator. Point the `*-dir` inputs at yours. If you don't use OpenAPI at all, this action still works — `generate-openapi: auto` (the default) detects that `codegen-tool-dir` doesn't exist and runs just the app-level `build_runner` step. |
 
-> **Defaults assume `mobile/`.** If your app lives at the repo root or elsewhere,
-> set `project-dir`, `api-dir`, and `codegen-tool-dir` accordingly.
+> **Defaults assume the repo root (`.`, `api`, `tool/openapi_codegen`).**
+> If your app lives in a subdirectory (e.g. `mobile/` or `apps/mobile/`), set
+> `project-dir`, `api-dir`, and `codegen-tool-dir` accordingly.
 >
 > **No OpenAPI client?** Leave `generate-openapi` at its `auto` default (or set
 > it to `false` explicitly) — the OpenAPI-client stage is skipped and only the
@@ -25,9 +26,9 @@ generated `*.g.dart` → app `build_runner` (riverpod / drift / go_router).
 - uses: actions/checkout@v7
 - uses: vymalo/flutter-tools/actions/codegen@v0
   with:
-    project-dir: mobile
-    api-dir: mobile/api
-    codegen-tool-dir: mobile/tool/openapi_codegen
+    project-dir: .
+    api-dir: api
+    codegen-tool-dir: tool/openapi_codegen
     flutter-version: '3.44.2'
 ```
 
@@ -35,9 +36,9 @@ generated `*.g.dart` → app `build_runner` (riverpod / drift / go_router).
 
 | Input | Required | Default | What it does |
 |---|---|---|---|
-| `project-dir` | no | `mobile` | Your Flutter app directory. |
-| `api-dir` | no | `mobile/api` | The generated OpenAPI client package. |
-| `codegen-tool-dir` | no | `mobile/tool/openapi_codegen` | Dir whose `build_runner` runs the OpenAPI Generator. |
+| `project-dir` | no | `.` | Your Flutter app directory. |
+| `api-dir` | no | `api` | The generated OpenAPI client package. |
+| `codegen-tool-dir` | no | `tool/openapi_codegen` | Dir whose `build_runner` runs the OpenAPI Generator. |
 | `generate-openapi` | no | `auto` | `auto`/`true`/`false`. `auto` skips the OpenAPI-client stage when `codegen-tool-dir` doesn't exist on disk. |
 | `clean` | no | `true` | `build_runner clean` + drop `pubspec.lock` first (avoids stale `*.g.dart`). |
 | `setup-flutter` / `setup-java` | no | `true` | Let this action install the toolchain. Set `false` if a prior step did. |

@@ -58,13 +58,19 @@ Future<void> main(List<String> args) async {
 /// on (the StepRunner reads RUNNER_DEBUG when this is null).
 bool? _verbose(ArgResults a) => a.flag('verbose') ? true : null;
 
+/// Shared `--project-dir` option defaulting to the workspace root (`.`).
+void _addProjectDirOption(
+  ArgParser parser, {
+  String help = 'Flutter app directory (relative to workspace).',
+}) => parser.addOption('project-dir', defaultsTo: '.', help: help);
+
 /// `flutter-tools version-stamp` — rewrite pubspec `version:` to `x.y.z+<build>`
 /// (marketing version left intact), then emit the resolved version as outputs.
 class VersionStampCommand extends Command<void> {
   VersionStampCommand() {
+    _addProjectDirOption(argParser);
     argParser
       ..addOption('workspace', defaultsTo: Directory.current.path)
-      ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption(
         'build-number',
         mandatory: true,
@@ -139,9 +145,9 @@ class VersionStampCommand extends Command<void> {
 ///   runners for iOS builds.
 class IosBuildCommand extends Command<void> {
   IosBuildCommand() {
+    _addProjectDirOption(argParser);
     argParser
       ..addOption('workspace', defaultsTo: Directory.current.path)
-      ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption(
         'app-id',
         defaultsTo: 'com.vymalo.vymalo',
@@ -297,21 +303,21 @@ class IosBuildCommand extends Command<void> {
 /// `flutter-tools codegen` — the layered OpenAPI + build_runner codegen.
 class CodegenCommand extends Command<void> {
   CodegenCommand() {
+    _addProjectDirOption(argParser, help: 'Flutter app dir.');
     argParser
       ..addOption(
         'workspace',
         help: 'Repo root the other paths resolve against.',
         defaultsTo: Directory.current.path,
       )
-      ..addOption('project-dir', defaultsTo: 'mobile', help: 'Flutter app dir.')
       ..addOption(
         'api-dir',
-        defaultsTo: 'mobile/api',
+        defaultsTo: 'api',
         help: 'Generated OpenAPI client dir.',
       )
       ..addOption(
         'codegen-tool-dir',
-        defaultsTo: 'mobile/tool/openapi_codegen',
+        defaultsTo: 'tool/openapi_codegen',
         help: 'Dir whose build_runner drives the OpenAPI Generator CLI.',
       )
       ..addOption(
@@ -422,9 +428,9 @@ class CodegenCommand extends Command<void> {
 /// keystore the APK falls back to an unsigned debug build.
 class AndroidBuildCommand extends Command<void> {
   AndroidBuildCommand() {
+    _addProjectDirOption(argParser);
     argParser
       ..addOption('workspace', defaultsTo: Directory.current.path)
-      ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption('build-number', help: 'Android versionCode (--build-number).')
       ..addOption(
         'artifacts',
@@ -589,9 +595,9 @@ String _pubspecVersion(String workspace, String projectDir) {
 /// pilot. ASC API key from the environment.
 class TestflightSubmitCommand extends Command<void> {
   TestflightSubmitCommand() {
+    _addProjectDirOption(argParser);
     argParser
       ..addOption('workspace', defaultsTo: Directory.current.path)
-      ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption('ipa', help: 'IPA path. Default: first under build/ios/ipa.')
       ..addOption('fastlane', defaultsTo: 'fastlane')
       ..addFlag('skip-waiting', defaultsTo: true)
@@ -643,9 +649,9 @@ class TestflightSubmitCommand extends Command<void> {
 /// Store Connect via Fastlane deliver, optionally submitting for review.
 class AppStoreSubmitCommand extends Command<void> {
   AppStoreSubmitCommand() {
+    _addProjectDirOption(argParser);
     argParser
       ..addOption('workspace', defaultsTo: Directory.current.path)
-      ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption('ipa', help: 'IPA path. Default: first under build/ios/ipa.')
       ..addOption('app-version', help: 'Marketing x.y.z. Default: pubspec.')
       ..addOption(
@@ -903,9 +909,9 @@ class S3UploadCommand extends Command<void> {
 /// Read-only (git reads + pubspec); the action does the tag + GitHub Release.
 class ReleaseCutCommand extends Command<void> {
   ReleaseCutCommand() {
+    _addProjectDirOption(argParser);
     argParser
       ..addOption('workspace', defaultsTo: Directory.current.path)
-      ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption('tag-prefix', defaultsTo: 'mobile-v')
       ..addOption(
         'bump',
@@ -950,7 +956,16 @@ class ReleaseCutCommand extends Command<void> {
     // that tags a supplied SHA infers its bump from the commits actually in it.
     final logArgs = <String>['log', '--format=%s%n%b'];
     logArgs.add(latestTag.isNotEmpty ? '$latestTag..$ref' : ref);
-    if (projectDir != '.') logArgs.addAll(['--', '$projectDir/']);
+    var scopedDir = projectDir.trim();
+    while (scopedDir.startsWith('./') || scopedDir.startsWith(r'.\')) {
+      scopedDir = scopedDir.substring(2);
+    }
+    if (scopedDir.endsWith('/') || scopedDir.endsWith(r'\')) {
+      scopedDir = scopedDir.substring(0, scopedDir.length - 1);
+    }
+    if (scopedDir.isNotEmpty && scopedDir != '.') {
+      logArgs.addAll(['--', '$scopedDir/']);
+    }
     final commitLog = git(logArgs);
 
     final pubspec = File(resolveIn(resolveIn(ws, projectDir), 'pubspec.yaml'));
@@ -993,9 +1008,9 @@ class ReleaseCutCommand extends Command<void> {
 /// on zero collected (a green run with no screenshots is the classic trap).
 class ScreenshotsCommand extends Command<void> {
   ScreenshotsCommand() {
+    _addProjectDirOption(argParser);
     argParser
       ..addOption('workspace', defaultsTo: Directory.current.path)
-      ..addOption('project-dir', defaultsTo: 'mobile')
       ..addOption(
         'platform',
         defaultsTo: 'both',

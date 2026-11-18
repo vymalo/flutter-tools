@@ -9,14 +9,14 @@ inputs:
   workspace:
     default: ${{ github.workspace }}
   project-dir:
-    default: 'mobile'
+    default: '.'
   api-pubspec-template:
     description: 'Tracked pubspec template copied to <project-dir>/api/pubspec.yaml.'
-    default: 'mobile/tool/api-pubspec.template.yaml'
+    default: 'tool/api-pubspec.template.yaml'
   generate-openapi:
     description: >-
       'auto' (default) skips the OpenAPI-client stage when the CLI's default
-      codegen-tool-dir (mobile/tool/openapi_codegen) doesn't exist on disk.
+      codegen-tool-dir (tool/openapi_codegen) doesn't exist on disk.
       'true'/'false' force the decision either way. Only matters when
       run-codegen is 'true'.
     default: 'auto'

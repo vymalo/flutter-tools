@@ -17,10 +17,15 @@ set -euo pipefail
 
 output=
 url=
+write_out=
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -o | --output)
       output="$2"
+      shift 2
+      ;;
+    -w | --write-out)
+      write_out="$2"
       shift 2
       ;;
     http://* | https://*)
@@ -58,6 +63,10 @@ case "$url" in
     exit 22
     ;;
 esac
+
+if [ -n "$write_out" ]; then
+  printf '%s' "${write_out//\%\{http_code\}/200}"
+fi
 MOCK_CURL
 chmod +x "$test_tmp/bin/curl"
 

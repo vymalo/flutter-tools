@@ -12,7 +12,7 @@ inputs:
     default: ${{ github.workspace }}
   project-dir:
     description: 'Flutter app directory (holds pubspec.yaml).'
-    default: 'mobile'
+    default: '.'
   build-number:
     description: 'The +build value to stamp. Defaults to the CI run number.'
     default: ${{ github.run_number }}

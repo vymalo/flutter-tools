@@ -9,11 +9,11 @@ inputs:
   workspace:
     default: ${{ github.workspace }}
   project-dir:
-    default: 'mobile'
+    default: '.'
   api-dir:
-    default: 'mobile/api'
+    default: 'api'
   codegen-tool-dir:
-    default: 'mobile/tool/openapi_codegen'
+    default: 'tool/openapi_codegen'
   generate-openapi:
     description: >-
       'auto' (default) skips the OpenAPI-client stage when codegen-tool-dir

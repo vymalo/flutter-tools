@@ -14,7 +14,7 @@ inputs:
     default: ${{ github.workspace }}
   project-dir:
     description: 'Path scoping the conventional-commit scan + the pubspec fallback.'
-    default: 'mobile'
+    default: '.'
   tag-prefix:
     description: 'Tag namespace, e.g. mobile-v → mobile-v1.2.3.'
     default: 'mobile-v'

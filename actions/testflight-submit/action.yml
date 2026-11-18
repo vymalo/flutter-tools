@@ -7,7 +7,7 @@ inputs:
   workspace:
     default: ${{ github.workspace }}
   project-dir:
-    default: 'mobile'
+    default: '.'
   ipa:
     description: 'IPA path. Default: first found under build/ios/ipa.'
     default: ''

@@ -24,14 +24,35 @@ void main() {
       ]);
 
       final keyProps = steps.whereType<WriteFileStep>().single;
-      expect(keyProps.path, '/w/mobile/android/key.properties');
+      expect(keyProps.path, '/w/android/key.properties');
       expect(keyProps.contents, contains('storeFile=/tmp/ks.keystore'));
       expect(keyProps.contents, contains('keyAlias=al'));
 
       final apk = steps.whereType<RunStep>().first;
       expect(apk.executable, 'flutter');
       expect(apk.args, ['build', 'apk', '--release', '--build-number=42']);
-      expect(apk.workingDir, '/w/mobile');
+      expect(apk.workingDir, '/w');
+    });
+
+    test('honours explicit monorepo projectDir (e.g. apps/mobile)', () {
+      final steps = planAndroidBuild(
+        const AndroidBuildConfig(
+          workspace: '/w',
+          projectDir: 'apps/mobile',
+          signed: true,
+          keystorePath: '/tmp/ks.keystore',
+          keystorePassword: 'sp',
+          keyAlias: 'al',
+          keyPassword: 'kp',
+        ),
+      );
+
+      final keyProps = steps.whereType<WriteFileStep>().single;
+      expect(keyProps.path, '/w/apps/mobile/android/key.properties');
+
+      final runs = steps.whereType<RunStep>().toList();
+      expect(runs, hasLength(2));
+      expect(runs.every((r) => r.workingDir == '/w/apps/mobile'), isTrue);
     });
 
     test('unsigned build: debug APK only, no key.properties, no AAB', () {

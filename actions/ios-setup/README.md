@@ -20,7 +20,7 @@ codegen, sets up Bundler, and runs `pod install`. Put it after `checkout`, befor
 - uses: vymalo/flutter-tools/actions/ios-setup@v0
   with:
     flutter-version: '3.44.2'
-    project-dir: mobile
+    project-dir: .
 ```
 
 ## Inputs (most-used)
@@ -28,9 +28,9 @@ codegen, sets up Bundler, and runs `pod install`. Put it after `checkout`, befor
 | Input | Required | Default | What it does |
 |---|---|---|---|
 | `flutter-version` | no | `3.44.2` | Flutter SDK version. |
-| `project-dir` | no | `mobile` | Your Flutter app directory. |
+| `project-dir` | no | `.` | Your Flutter app directory. |
 | `pod-install` | no | `true` | Run `pod install` in `ios/`. |
 | `run-codegen` | no | `true` | Run the layered codegen after setup. |
-| `api-pubspec-template` | no | `mobile/tool/api-pubspec.template.yaml` | Restores the generated-API `pubspec.yaml` on runners where it's gitignored. |
+| `api-pubspec-template` | no | `tool/api-pubspec.template.yaml` | Restores the generated-API `pubspec.yaml` on runners where it's gitignored. |
 
 See [`action.yml`](action.yml) for the full list.

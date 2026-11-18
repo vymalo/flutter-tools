@@ -11,13 +11,13 @@ inputs:
     default: ${{ github.workspace }}
   project-dir:
     description: 'Flutter app directory.'
-    default: 'mobile'
+    default: '.'
   api-dir:
     description: 'Generated OpenAPI client package directory.'
-    default: 'mobile/api'
+    default: 'api'
   codegen-tool-dir:
     description: 'Directory whose build_runner drives the OpenAPI Generator CLI.'
-    default: 'mobile/tool/openapi_codegen'
+    default: 'tool/openapi_codegen'
   generate-openapi:
     description: >-
       'auto' (default) skips the OpenAPI-client stage when codegen-tool-dir

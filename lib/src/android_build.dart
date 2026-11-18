@@ -9,7 +9,7 @@ enum AndroidArtifact { apk, aab }
 class AndroidBuildConfig {
   const AndroidBuildConfig({
     required this.workspace,
-    this.projectDir = 'mobile',
+    this.projectDir = '.',
     this.signed = false,
     this.keystorePath = '',
     this.keystorePassword = '',
