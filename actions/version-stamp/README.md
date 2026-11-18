@@ -13,7 +13,7 @@ before any build.
 | **Runner** | Any — Linux or macOS. |
 | **Run before this** | `actions/checkout`. No Dart/Flutter setup required — the action downloads a prebuilt CLI binary for the runner's OS/arch. (Dart on `PATH` is a harmless nice-to-have, not needed.) |
 | **Secrets** | None. |
-| **In your repo** | A `pubspec.yaml` under `project-dir` (default `mobile/`). |
+| **In your repo** | A `pubspec.yaml` under `project-dir` (default `.`). |
 
 > By default the build number is the **CI run number** (`github.run_number`),
 > which always increases. Override with `build-number` if you track it elsewhere.
@@ -25,7 +25,7 @@ before any build.
 - id: ver
   uses: vymalo/flutter-tools/actions/version-stamp@v0
   with:
-    project-dir: mobile
+    project-dir: .
     # build-number defaults to the CI run number
     # version: 1.4.0    # optional — pin the marketing version (e.g. from a git tag)
 - run: echo "Built ${{ steps.ver.outputs.full-version }}"
@@ -35,7 +35,7 @@ before any build.
 
 | Input | Required | Default | What it does |
 |---|---|---|---|
-| `project-dir` | no | `mobile` | Folder holding `pubspec.yaml`. |
+| `project-dir` | no | `.` | Folder holding `pubspec.yaml`. |
 | `build-number` | no | CI run number | The `+build` value to stamp. |
 | `version` | no | _(keep existing)_ | Marketing `x.y.z` to set. Blank = keep pubspec's, only re-stamp `+build`. |
 

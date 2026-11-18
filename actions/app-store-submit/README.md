@@ -26,7 +26,7 @@ Optionally submits the version for review.
 ```yaml
 - uses: vymalo/flutter-tools/actions/app-store-submit@v0
   with:
-    screenshots-path: mobile/fastlane/screenshots
+    screenshots-path: fastlane/screenshots
     skip-binary-upload: true
     skip-screenshots: false   # REQUIRED here: defaults to true, so without it
                               # deliver skips the screenshots too and uploads nothing

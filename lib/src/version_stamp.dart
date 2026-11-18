@@ -10,7 +10,7 @@ import 'step.dart';
 class VersionStampConfig {
   const VersionStampConfig({
     required this.workspace,
-    this.projectDir = 'mobile',
+    this.projectDir = '.',
     required this.buildNumber,
     this.marketingVersion,
   });

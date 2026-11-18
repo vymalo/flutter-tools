@@ -152,13 +152,17 @@ class StepFailure implements Exception {
 
 /// Resolve a possibly-relative [path] against [root] into an absolute path.
 String resolveIn(String root, String path) {
-  if (path.isEmpty) return root;
-  if (File(path).isAbsolute) return path;
-  final parts = path.split(RegExp(r'[/\\]'));
+  var normalized = path;
+  while (normalized.startsWith('./') || normalized.startsWith(r'.\')) {
+    normalized = normalized.substring(2);
+  }
+  if (normalized.isEmpty || normalized == '.') return root;
+  if (File(normalized).isAbsolute) return normalized;
+  final parts = normalized.split(RegExp(r'[/\\]'));
   if (parts.contains('..')) {
     throw ArgumentError('Path traversal ("..") not allowed: $path');
   }
-  return _join(root, path);
+  return _join(root, normalized);
 }
 
 String _join(String a, String b) {

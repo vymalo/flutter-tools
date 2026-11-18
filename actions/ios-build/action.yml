@@ -11,7 +11,7 @@ inputs:
   workspace:
     default: ${{ github.workspace }}
   project-dir:
-    default: 'mobile'
+    default: '.'
   app-id:
     description: 'Bundle identifier.'
     default: 'com.vymalo.vymalo'

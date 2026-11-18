@@ -67,7 +67,7 @@ void main() {
         '--no-codesign',
         '--dart-define=MEDUSA_BASE_URL=https://api.vymalo.com',
       ]);
-      expect(build.workingDir, '/w/mobile');
+      expect(build.workingDir, '/w');
     });
 
     test('flavor selects the scheme via --flavor, archive path unchanged', () {
@@ -93,7 +93,7 @@ void main() {
         '--flavor=prod',
       ]);
       final x = steps.firstWhere((s) => s.executable == 'xcodebuild');
-      expect(x.args, contains('/w/mobile/build/ios/archive/Runner.xcarchive'));
+      expect(x.args, contains('/w/build/ios/archive/Runner.xcarchive'));
     });
 
     test('xcodebuild exports the archive to build/ios/ipa', () {
@@ -105,11 +105,43 @@ void main() {
         containsAllInOrder([
           '-exportArchive',
           '-archivePath',
-          '/w/mobile/build/ios/archive/Runner.xcarchive',
+          '/w/build/ios/archive/Runner.xcarchive',
           '-exportOptionsPlist',
           '/tmp/ci.keychain-db.ExportOptions.plist',
           '-exportPath',
-          '/w/mobile/build/ios/ipa',
+          '/w/build/ios/ipa',
+        ]),
+      );
+    });
+
+    test('honours explicit monorepo projectDir (e.g. apps/mobile)', () {
+      const cfg = IosBuildConfig(
+        workspace: '/w',
+        projectDir: 'apps/mobile',
+        appId: 'com.vymalo.vymalo',
+        teamId: 'TEAM123',
+        profileName: 'Vymalo App Store',
+        certPath: '/tmp/c.p12',
+        certPassword: 'p12pass',
+        profilePath: '/tmp/p.mobileprovision',
+        keychainPath: '/tmp/ci.keychain-db',
+        keychainPassword: 'kcpass',
+      );
+      final steps = planIosBuild(cfg).whereType<RunStep>().toList();
+      final build = steps.firstWhere((s) => s.executable == 'flutter');
+      expect(build.workingDir, '/w/apps/mobile');
+
+      final x = steps.firstWhere((s) => s.executable == 'xcodebuild');
+      expect(x.workingDir, '/w/apps/mobile');
+      expect(
+        x.args,
+        containsAllInOrder([
+          '-archivePath',
+          '/w/apps/mobile/build/ios/archive/Runner.xcarchive',
+          '-exportOptionsPlist',
+          '/tmp/ci.keychain-db.ExportOptions.plist',
+          '-exportPath',
+          '/w/apps/mobile/build/ios/ipa',
         ]),
       );
     });

@@ -9,7 +9,7 @@ inputs:
   workspace:
     default: ${{ github.workspace }}
   project-dir:
-    default: 'mobile'
+    default: '.'
   artifacts:
     description: 'apk | aab | both'
     default: 'both'

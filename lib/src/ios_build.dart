@@ -13,7 +13,7 @@ import 'step.dart';
 class IosBuildConfig {
   const IosBuildConfig({
     required this.workspace,
-    this.projectDir = 'mobile',
+    this.projectDir = '.',
     required this.appId,
     required this.teamId,
     required this.profileName,

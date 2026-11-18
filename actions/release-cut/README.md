@@ -55,7 +55,7 @@ jobs:
 | `tag-prefix` | no | `mobile-v` | Tag namespace → `<prefix>1.2.3`. |
 | `bump` | no | `auto` | `auto` / `patch` / `minor` / `major`. |
 | `title-prefix` | no | `Mobile` | Release title → `<prefix> x.y.z`. |
-| `project-dir` | no | `mobile` | Scopes the commit scan + pubspec fallback. |
+| `project-dir` | no | `.` | Scopes the commit scan + pubspec fallback. |
 | `target` | no | `github.sha` | Commitish to tag. |
 
 ## Outputs
